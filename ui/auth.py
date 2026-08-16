@@ -16,34 +16,52 @@ def _rerun() -> None:
 
 
 def render_login() -> None:
-    # Layout: left branding, right auth card
-    left, right = st.columns([1.2, 1])
-    with left:
-        st.markdown("&nbsp;")
-        st.image("assets/gujarat-vidyapith-logo.png", width=130)
-        st.markdown("### Department of Computer Science")
-        st.markdown("#### Transparent Practical Evaluation & Management System")
-        st.caption("A unified digital platform for practical assignments, GitHub code submissions, automated grading, and academic progress monitoring.")
-    with right:
-        st.markdown("&nbsp;")
-        st.markdown("### Institutional Sign In")
-        st.caption("Sign in with your official Gujarat Vidyapith Google Workspace account.")
+    # Centered mobile-first card layout — Google sign-in is immediately visible at the top
+    col_left, col_center, col_right = st.columns([1, 2.4, 1])
+    with col_center:
+        st.markdown("<div style='text-align: center; margin-bottom: 0.5rem;'>", unsafe_allow_html=True)
+        st.image("assets/gujarat-vidyapith-logo.png", width=85)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown(
+            """
+            <div style='text-align: center; margin-bottom: 1.25rem;'>
+                <h3 style='margin: 0.2rem 0 0.1rem 0; font-size: 1.35rem;'>Gujarat Vidyapith</h3>
+                <div style='font-size: 0.88rem; color: var(--muted); font-weight: 500; margin-bottom: 0.35rem;'>
+                    Department of Computer Science
+                </div>
+                <div style='font-size: 0.95rem; font-weight: 600; color: var(--accent-strong);'>
+                    Practical Evaluation &amp; Management System
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         if "google_auth_error" in st.session_state:
             st.error(st.session_state.pop("google_auth_error"))
 
-        # Google Sign-In
+        # Google Sign-In Button
         from services.oauth_service import is_google_auth_configured, get_google_auth_url
 
         if is_google_auth_configured():
             google_url = get_google_auth_url()
-            st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
             st.link_button(
                 "🌐 Sign in with Google",
                 google_url,
                 type="primary",
                 use_container_width=True,
                 help="Sign in with your @gujaratvidyapith.org institutional Google account",
+            )
+            st.markdown(
+                """
+                <div style='text-align: center; margin-top: 0.85rem; font-size: 0.8rem; color: var(--muted); line-height: 1.45;'>
+                    Institutional single sign-on for <strong>Students</strong>, <strong>Faculty</strong> &amp; <strong>Administrators</strong>.
+                    <br>
+                    <span style='font-size: 0.76rem; opacity: 0.85;'>Use your official <code>@gujaratvidyapith.org</code> account</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
         else:
             st.warning("⚠️ **Google Sign-In is not configured yet.**")
@@ -58,6 +76,7 @@ def render_login() -> None:
                 ```
                 """
             )
+
 
 
 def render_student_onboarding(db, google_info: dict) -> None:

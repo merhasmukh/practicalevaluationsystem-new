@@ -419,22 +419,107 @@ button[kind="secondary"] span,
   box-shadow: var(--shadow-sm) !important;
 }
 
-/* ── Inputs (Prevent mobile auto-zoom with 16px minimum font size) ── */
-.stTextInput > div > div > input,
-.stSelectbox > div > div > div,
-.stTextArea > div > div > textarea {
-  border-radius: 8px !important;
-  border-color: var(--border) !important;
-  font-family: var(--font) !important;
-  font-size: 0.95rem !important;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+/* ── Form Inputs & Controls ── */
+/* Text inputs, number inputs, date inputs, time inputs */
+div[data-baseweb="input"],
+div[data-baseweb="base-input"],
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextInput"] div[data-baseweb="base-input"],
+[data-testid="stNumberInput"] div[data-baseweb="input"],
+[data-testid="stNumberInput"] div[data-baseweb="base-input"],
+[data-testid="stDateInput"] div[data-baseweb="input"],
+[data-testid="stTimeInput"] div[data-baseweb="input"] {
+  border: 1.5px solid #c7af90 !important;
+  border-radius: 9px !important;
+  background-color: #ffffff !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
+  box-shadow: 0 1px 2px rgba(62, 49, 34, 0.04) !important;
 }
 
-.stTextInput > div > div > input:focus,
-.stTextArea > div > div > textarea:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(143, 92, 50, 0.2) !important;
+/* Textareas */
+div[data-baseweb="textarea"],
+[data-testid="stTextArea"] div[data-baseweb="textarea"],
+[data-testid="stTextArea"] textarea {
+  border: 1.5px solid #c7af90 !important;
+  border-radius: 9px !important;
+  background-color: #ffffff !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
+  box-shadow: 0 1px 2px rgba(62, 49, 34, 0.04) !important;
 }
+
+/* Selectbox & Multiselect */
+div[data-baseweb="select"] > div,
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+  border: 1.5px solid #c7af90 !important;
+  border-radius: 9px !important;
+  background-color: #ffffff !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
+  box-shadow: 0 1px 2px rgba(62, 49, 34, 0.04) !important;
+}
+
+/* Focus States — Warm accent border + soft focus ring */
+div[data-baseweb="input"]:focus-within,
+div[data-baseweb="base-input"]:focus-within,
+div[data-baseweb="textarea"]:focus-within,
+div[data-baseweb="select"] > div:focus-within,
+[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stNumberInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stTextArea"] div[data-baseweb="textarea"]:focus-within,
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within,
+[data-testid="stMultiSelect"] div[data-baseweb="select"] > div:focus-within,
+[data-testid="stDateInput"] div[data-baseweb="input"]:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(143, 92, 50, 0.22) !important;
+  background-color: #ffffff !important;
+}
+
+/* Hover States */
+div[data-baseweb="input"]:hover,
+div[data-baseweb="textarea"]:hover,
+div[data-baseweb="select"] > div:hover {
+  border-color: #9d6f46 !important;
+}
+
+/* Inner input text styling */
+.stTextInput input,
+.stNumberInput input,
+.stDateInput input,
+.stTimeInput input {
+  color: var(--ink) !important;
+  font-family: var(--font) !important;
+  font-size: 0.95rem !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.stTextArea textarea {
+  color: var(--ink) !important;
+  font-family: var(--font) !important;
+  font-size: 0.95rem !important;
+  background: transparent !important;
+}
+
+/* Number input step controls (+ / - buttons) */
+[data-testid="stNumberInput"] button {
+  border: none !important;
+  background: transparent !important;
+  color: var(--accent-strong) !important;
+  border-radius: 6px !important;
+}
+
+[data-testid="stNumberInput"] button:hover {
+  background: rgba(91, 56, 29, 0.1) !important;
+}
+
+/* File uploader dropzone */
+[data-testid="stFileUploader"] section[data-testid="stFileUploadDropzone"],
+.stFileUploader section {
+  border: 1.5px dashed #c7af90 !important;
+  border-radius: 12px !important;
+  background-color: #ffffff !important;
+}
+
 
 /* ── Login Card ── */
 .login-page {
@@ -676,12 +761,15 @@ button[kind="secondary"] span,
     border-radius: 10px !important;
   }
 
-  /* Input fields prevent auto-zoom */
-  .stTextInput > div > div > input,
-  .stSelectbox > div > div > div,
-  .stTextArea > div > div > textarea {
+  /* Input fields prevent iOS auto-zoom */
+  .stTextInput input,
+  .stNumberInput input,
+  .stSelectbox div[data-baseweb="select"] span,
+  .stSelectbox div[data-baseweb="select"] div,
+  .stTextArea textarea {
     font-size: 16px !important;
   }
+
 
   /* Buttons touch-friendly */
   .stButton > button,

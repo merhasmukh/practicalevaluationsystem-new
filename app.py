@@ -25,18 +25,7 @@ def render_brand_header() -> None:
   return None
 
 
-def render_footer() -> None:
-    st.markdown(
-        """
-        <div class="page-footer">
-            🎓&nbsp; <strong>Gujarat Vidyapith</strong>
-            &nbsp;·&nbsp; Developed by Department of Computer Science
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            &copy; 2026 Gujarat Vidyapith &nbsp;·&nbsp; Practical Evaluation &amp; Management System
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+
 
 
 run_migrations()
@@ -243,4 +232,3 @@ with SessionLocal() as db:
             unsafe_allow_html=True,
           )
 
-        render_footer()

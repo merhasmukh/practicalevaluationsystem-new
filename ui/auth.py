@@ -2,7 +2,7 @@ import streamlit as st
 from core.session_manager import create_session_token
 from datetime import datetime, timezone
 import re
-
+from sqlalchemy import select
 
 
 def _rerun() -> None:

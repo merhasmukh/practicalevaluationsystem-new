@@ -419,106 +419,101 @@ button[kind="secondary"] span,
   box-shadow: var(--shadow-sm) !important;
 }
 
-/* ── Form Inputs & Controls ── */
-/* Text inputs, number inputs, date inputs, time inputs */
-div[data-baseweb="input"],
-div[data-baseweb="base-input"],
-[data-testid="stTextInput"] div[data-baseweb="input"],
-[data-testid="stTextInput"] div[data-baseweb="base-input"],
-[data-testid="stNumberInput"] div[data-baseweb="input"],
-[data-testid="stNumberInput"] div[data-baseweb="base-input"],
-[data-testid="stDateInput"] div[data-baseweb="input"],
-[data-testid="stTimeInput"] div[data-baseweb="input"] {
-  border: 1.5px solid #c7af90 !important;
-  border-radius: 9px !important;
+/* ── Form Inputs & Controls — Guaranteed Visible Borders on Idle & Focus ── */
+.stApp div[data-baseweb="input"],
+.stApp div[data-baseweb="base-input"],
+.stApp div[data-baseweb="textarea"],
+.stApp div[data-baseweb="select"] > div,
+.stApp div[data-baseweb="select"],
+.stApp [data-testid="stTextInput"] div[data-baseweb="input"],
+.stApp [data-testid="stTextInput"] div[data-baseweb="base-input"],
+.stApp [data-testid="stNumberInput"] div[data-baseweb="input"],
+.stApp [data-testid="stNumberInput"] div[data-baseweb="base-input"],
+.stApp [data-testid="stDateInput"] div[data-baseweb="input"],
+.stApp [data-testid="stTimeInput"] div[data-baseweb="input"],
+.stApp [data-testid="stTextArea"] div[data-baseweb="textarea"],
+.stApp [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+.stApp [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+  border-width: 1.5px !important;
+  border-style: solid !important;
+  border-color: #a8835d !important;
+  border-top-color: #a8835d !important;
+  border-right-color: #a8835d !important;
+  border-bottom-color: #a8835d !important;
+  border-left-color: #a8835d !important;
+  border-radius: 8px !important;
   background-color: #ffffff !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
-  box-shadow: 0 1px 2px rgba(62, 49, 34, 0.04) !important;
+  box-shadow: 0 1px 3px rgba(62, 49, 34, 0.06) !important;
 }
 
-/* Textareas */
-div[data-baseweb="textarea"],
-[data-testid="stTextArea"] div[data-baseweb="textarea"],
-[data-testid="stTextArea"] textarea {
-  border: 1.5px solid #c7af90 !important;
-  border-radius: 9px !important;
-  background-color: #ffffff !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
-  box-shadow: 0 1px 2px rgba(62, 49, 34, 0.04) !important;
+/* Direct input and textarea elements inside controls */
+.stApp [data-testid="stTextInput"] input,
+.stApp [data-testid="stNumberInput"] input,
+.stApp [data-testid="stDateInput"] input,
+.stApp [data-testid="stTimeInput"] input,
+.stApp [data-testid="stTextArea"] textarea,
+.stApp .stTextInput input,
+.stApp .stNumberInput input,
+.stApp .stTextArea textarea {
+  color: var(--ink) !important;
+  font-family: var(--font) !important;
+  font-size: 0.95rem !important;
+  background-color: transparent !important;
 }
 
-/* Selectbox & Multiselect */
-div[data-baseweb="select"] > div,
-[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
-  border: 1.5px solid #c7af90 !important;
-  border-radius: 9px !important;
-  background-color: #ffffff !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
-  box-shadow: 0 1px 2px rgba(62, 49, 34, 0.04) !important;
-}
-
-/* Focus States — Warm accent border + soft focus ring */
-div[data-baseweb="input"]:focus-within,
-div[data-baseweb="base-input"]:focus-within,
-div[data-baseweb="textarea"]:focus-within,
-div[data-baseweb="select"] > div:focus-within,
-[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
-[data-testid="stNumberInput"] div[data-baseweb="input"]:focus-within,
-[data-testid="stTextArea"] div[data-baseweb="textarea"]:focus-within,
-[data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within,
-[data-testid="stMultiSelect"] div[data-baseweb="select"] > div:focus-within,
-[data-testid="stDateInput"] div[data-baseweb="input"]:focus-within {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(143, 92, 50, 0.22) !important;
+/* Focus States — Dark Accent Border + Soft Glow */
+.stApp div[data-baseweb="input"]:focus-within,
+.stApp div[data-baseweb="base-input"]:focus-within,
+.stApp div[data-baseweb="textarea"]:focus-within,
+.stApp div[data-baseweb="select"]:focus-within,
+.stApp div[data-baseweb="select"] > div:focus-within,
+.stApp [data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+.stApp [data-testid="stNumberInput"] div[data-baseweb="input"]:focus-within,
+.stApp [data-testid="stTextArea"] div[data-baseweb="textarea"]:focus-within,
+.stApp [data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within,
+.stApp [data-testid="stMultiSelect"] div[data-baseweb="select"] > div:focus-within,
+.stApp [data-testid="stDateInput"] div[data-baseweb="input"]:focus-within {
+  border-color: #5b381d !important;
+  border-top-color: #5b381d !important;
+  border-right-color: #5b381d !important;
+  border-bottom-color: #5b381d !important;
+  border-left-color: #5b381d !important;
+  box-shadow: 0 0 0 3px rgba(91, 56, 29, 0.22) !important;
   background-color: #ffffff !important;
 }
 
 /* Hover States */
-div[data-baseweb="input"]:hover,
-div[data-baseweb="textarea"]:hover,
-div[data-baseweb="select"] > div:hover {
-  border-color: #9d6f46 !important;
-}
-
-/* Inner input text styling */
-.stTextInput input,
-.stNumberInput input,
-.stDateInput input,
-.stTimeInput input {
-  color: var(--ink) !important;
-  font-family: var(--font) !important;
-  font-size: 0.95rem !important;
-  background: transparent !important;
-  border: none !important;
-}
-
-.stTextArea textarea {
-  color: var(--ink) !important;
-  font-family: var(--font) !important;
-  font-size: 0.95rem !important;
-  background: transparent !important;
+.stApp div[data-baseweb="input"]:hover,
+.stApp div[data-baseweb="textarea"]:hover,
+.stApp div[data-baseweb="select"] > div:hover {
+  border-color: #7b4f2c !important;
+  border-top-color: #7b4f2c !important;
+  border-right-color: #7b4f2c !important;
+  border-bottom-color: #7b4f2c !important;
+  border-left-color: #7b4f2c !important;
 }
 
 /* Number input step controls (+ / - buttons) */
-[data-testid="stNumberInput"] button {
+.stApp [data-testid="stNumberInput"] button {
   border: none !important;
   background: transparent !important;
   color: var(--accent-strong) !important;
   border-radius: 6px !important;
 }
 
-[data-testid="stNumberInput"] button:hover {
+.stApp [data-testid="stNumberInput"] button:hover {
   background: rgba(91, 56, 29, 0.1) !important;
 }
 
 /* File uploader dropzone */
-[data-testid="stFileUploader"] section[data-testid="stFileUploadDropzone"],
-.stFileUploader section {
-  border: 1.5px dashed #c7af90 !important;
+.stApp [data-testid="stFileUploader"] section[data-testid="stFileUploadDropzone"],
+.stApp .stFileUploader section {
+  border: 1.5px dashed #a8835d !important;
   border-radius: 12px !important;
   background-color: #ffffff !important;
 }
+
+
 
 
 /* ── Login Card ── */

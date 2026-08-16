@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 
+
 def apply_theme():
     """Reads the custom CSS file and injects it into the Streamlit app."""
     css_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "styles.css")

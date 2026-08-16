@@ -28,10 +28,11 @@ def _subject_labels(subjects: list[Subject]) -> dict[int, str]:
 
 def faculty_page(db, user) -> None:
     st.title("Faculty workspace")
-    # require faculty access permission (administrators bypass)
-    if not (user and (user.role and user.role.name == "Administrator" or has_permission(db, user, "faculty.access"))):
+    # require faculty access permission (faculty and administrators allowed)
+    if not (user and (user.role and user.role.name in ["Faculty", "Administrator"] or has_permission(db, user, "faculty.access"))):
         st.error("You do not have permission to access the Faculty workspace.")
         return
+
     subjects = subjects_for_faculty(db, user.id)
     if not subjects:
         st.info("No subjects have been assigned to you yet. Contact the administrator to assign subjects.")
@@ -95,7 +96,7 @@ def _bulk_practical_import(db, user_id: int) -> None:
 
             if bad_count:
                 st.warning(f"{bad_count} row(s) have issues (missing fields or already in database) and will be skipped.")
-                st.dataframe(pd.DataFrame([p for p in preview if not p["ready"]]), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame([p for p in preview if not p["ready"]]), hide_index=True, width="stretch")
 
             if valid_count == 0:
                 st.error("No new practicals to import. All items either have errors or are already present in the database.")
@@ -318,7 +319,7 @@ def _assignment_ui(db, user_id: int, subject_labels: dict[int, str]) -> None:
                 assign_rec = db.scalar(select(Assignment).where(Assignment.practical_id == selected_practical.id, Assignment.student_id == s.id))
                 status_str = assign_rec.status if assign_rec else "Assigned"
                 assigned_rows.append({"Enrollment": s.enrollment_no, "Name": s.user.full_name, "Status": status_str})
-            st.dataframe(pd.DataFrame(assigned_rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(assigned_rows), hide_index=True, width="stretch")
 
 
 def _evaluation_ui(db, user_id: int, subject_labels: dict[int, str]) -> None:

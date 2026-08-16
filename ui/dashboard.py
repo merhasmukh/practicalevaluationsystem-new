@@ -48,7 +48,7 @@ def _render_plot(fig, title: str | None = None) -> None:
     )
     st.plotly_chart(
         fig,
-        use_container_width=True,
+        width="stretch",
         config={"displayModeBar": True, "displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]},
     )
 
@@ -155,7 +155,7 @@ def dashboard(db, user: User, active_role: str | None = None, *args, **kwargs) -
                 }
                 for assignment in filtered
             ])
-            st.dataframe(frame, hide_index=True, use_container_width=True)
+            st.dataframe(frame, hide_index=True, width="stretch")
         else:
             st.info("No matching practicals found.")
         return
@@ -477,7 +477,7 @@ def dashboard(db, user: User, active_role: str | None = None, *args, **kwargs) -
         st.download_button("Export CSV", csv_bytes, file_name="dashboard_export.csv", mime="text/csv")
 
     with st.expander("Current filtered records", expanded=True):
-        st.dataframe(filtered_frame, hide_index=True, use_container_width=True)
+        st.dataframe(filtered_frame, hide_index=True, width="stretch")
 
     summary_cols = st.columns(4)
     with summary_cols[0]:
@@ -529,7 +529,7 @@ def student_dashboard(db, student: Student, *args, **kwargs) -> None:
 
     st.subheader("Assigned practicals")
     if assignments:
-        st.dataframe(practical_rows(assignments), hide_index=True, use_container_width=True)
+        st.dataframe(practical_rows(assignments), hide_index=True, width="stretch")
     else:
         st.info("No practicals have been assigned yet.")
 
@@ -537,19 +537,19 @@ def student_dashboard(db, student: Student, *args, **kwargs) -> None:
     with left:
         st.subheader("Submitted practicals")
         if submitted:
-            st.dataframe(practical_rows(submitted), hide_index=True, use_container_width=True)
+            st.dataframe(practical_rows(submitted), hide_index=True, width="stretch")
         else:
             st.info("No practicals submitted yet.")
     with right:
         st.subheader("Pending practicals")
         if pending:
-            st.dataframe(practical_rows(pending), hide_index=True, use_container_width=True)
+            st.dataframe(practical_rows(pending), hide_index=True, width="stretch")
         else:
             st.success("All assigned practicals have been submitted.")
 
     st.subheader("Grades")
     if graded:
-        st.dataframe(practical_rows(graded, include_grade=True), hide_index=True, use_container_width=True)
+        st.dataframe(practical_rows(graded, include_grade=True), hide_index=True, width="stretch")
         for assignment in graded:
             evaluation = assignment.submission.evaluation
             with st.expander(f"P{assignment.practical.practical_number} · {assignment.practical.title} · Grade {evaluation.grade}"):

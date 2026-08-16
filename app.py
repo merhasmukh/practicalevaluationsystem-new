@@ -38,13 +38,16 @@ def _bootstrap_db_if_empty() -> None:
         from seed import seed
         with SessionLocal() as _db:
             role_count = _db.execute(text("SELECT COUNT(*) FROM roles")).scalar()
-            if role_count == 0:
-                logger.info("Roles table empty — running seed() to bootstrap initial data.")
+            perm_count = _db.execute(text("SELECT COUNT(*) FROM permissions")).scalar()
+            if role_count == 0 or perm_count == 0:
+                logger.info("Roles or permissions unpopulated — running seed() to bootstrap initial data.")
                 seed()
     except Exception as _e:
         logger.warning(f"Auto-seed skipped: {_e}")
 
+
 _bootstrap_db_if_empty()
+
 if "user_id" not in st.session_state:
 
     st.session_state.user_id = None

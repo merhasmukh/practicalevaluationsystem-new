@@ -72,7 +72,7 @@ def render_login() -> None:
                 "🌐 Sign in with Google",
                 google_url,
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 help="Sign in with your @gujaratvidyapith.org institutional Google account",
             )
             st.markdown(
@@ -182,9 +182,9 @@ def render_student_onboarding(db, google_info: dict) -> None:
 
         submit_col, cancel_col = st.columns([2, 1])
         with submit_col:
-            submitted = st.form_submit_button("Complete Setup & Enter Dashboard", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("Complete Setup & Enter Dashboard", type="primary", width="stretch")
         with cancel_col:
-            cancelled = st.form_submit_button("Cancel", use_container_width=True)
+            cancelled = st.form_submit_button("Cancel", width="stretch")
 
         if cancelled:
             st.session_state.pop("google_pending_registration", None)

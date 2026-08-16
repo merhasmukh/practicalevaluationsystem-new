@@ -79,7 +79,7 @@ def _department_crud(db, user_id: int) -> None:
     if departments:
         st.dataframe(
             pd.DataFrame([{"Code": item.code, "Name": item.name, "Programmes": len(item.programs), "Subjects": len(item.subjects)} for item in departments]),
-            hide_index=True, use_container_width=True,
+            hide_index=True, width="stretch",
         )
     with st.form("add_department", clear_on_submit=True):
         st.caption("Add department")
@@ -147,7 +147,7 @@ def _program_crud(db, user_id: int) -> None:
                 ]
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
     if not departments:
         st.info("Create a department before adding programmes.")
@@ -237,7 +237,7 @@ def _subject_crud(db, user_id: int) -> None:
                 rows = pd.read_excel(uploaded)
                 preview = validate_subject_import(rows, db)
                 st.success(f"Validated {len(preview)} row(s).")
-                st.dataframe(pd.DataFrame(preview), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(preview), hide_index=True, width="stretch")
                 if st.button("Import validated subjects"):
                     summary = import_subjects_from_dataframe(rows, db, user_id)
                     st.success(f"Imported {summary['imported']} subject(s); updated {summary['updated']}; skipped {summary['skipped']}; failed {summary['failed']}")
@@ -289,7 +289,7 @@ def _subject_crud(db, user_id: int) -> None:
                 ]
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
     if not departments:
         st.info("Create a department before adding subjects.")
@@ -384,7 +384,7 @@ def _faculty_crud(db, user_id: int) -> None:
         for member in faculty:
             assigned = sorted(link.subject.code for link in member.faculty_subjects)
             rows.append({"Name": member.full_name, "Username": member.username, "Email": member.email, "Assigned subjects": ", ".join(assigned) or "—", "Active": "Yes" if member.is_active else "No"})
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
     else:
         st.info("No faculty accounts yet. Create one below.")
 
@@ -517,20 +517,20 @@ def _user_crud(db, user_id: int) -> None:
                                     "Semester": s.semester,
                                     "Active": "Yes" if (s.user and s.user.is_active) else "No",
                                 })
-                            st.dataframe(pd.DataFrame(rows_data), hide_index=True, use_container_width=True)
+                            st.dataframe(pd.DataFrame(rows_data), hide_index=True, width="stretch")
         with all_tab:
             st.dataframe(
                 pd.DataFrame(
                     [{"Username": item.username, "Name": item.full_name, "Email": item.email, "Role": roles[item.role_id], "Active": "Yes" if item.is_active else "No"} for item in users]
                 ),
-                hide_index=True, use_container_width=True,
+                hide_index=True, width="stretch",
             )
     elif users:
         st.dataframe(
             pd.DataFrame(
                 [{"Username": item.username, "Name": item.full_name, "Email": item.email, "Role": roles[item.role_id], "Active": "Yes" if item.is_active else "No"} for item in users]
             ),
-            hide_index=True, use_container_width=True,
+            hide_index=True, width="stretch",
         )
 
     st.caption("Create user account")
@@ -666,7 +666,7 @@ def _user_crud(db, user_id: int) -> None:
 def _reports_ui(db) -> None:
     report_data = marks_dataframe(db)
     st.subheader("Evaluation report")
-    st.dataframe(report_data, hide_index=True, use_container_width=True)
+    st.dataframe(report_data, hide_index=True, width="stretch")
     csv_data = report_data.to_csv(index=False).encode("utf-8")
     downloads = st.container()
     with downloads:
@@ -712,7 +712,7 @@ def _bulk_import_ui(db, user_id: int) -> None:
             if error_count:
                 st.warning(f"{error_count} row(s) have issues and will be skipped. Review them below before importing.")
                 error_rows = [r for r in preview if not r.get("ready")]
-                st.dataframe(pd.DataFrame(error_rows), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(error_rows), hide_index=True, width="stretch")
 
             if ready_count == 0:
                 st.error("No rows are ready to import. Fix the errors above and re-upload.")

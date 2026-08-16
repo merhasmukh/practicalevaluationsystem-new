@@ -45,14 +45,6 @@ def render_login() -> None:
                 use_container_width=True,
                 help="Sign in with your @gujaratvidyapith.org institutional Google account",
             )
-            st.markdown("<div style='height: 0.8rem;'></div>", unsafe_allow_html=True)
-            st.info(
-                "🎓 **Role-Based Access**:\n"
-                "- **Students**: Sign in with your enrollment email (`<enrollment>.gvp@gujaratvidyapith.org`)\n"
-                "- **Faculty**: Sign in with your departmental email\n"
-                "- **Administrators**: Sign in with your configured admin email",
-                icon="ℹ️",
-            )
         else:
             st.warning("⚠️ **Google Sign-In is not configured yet.**")
             st.markdown(

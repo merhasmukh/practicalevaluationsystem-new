@@ -13,7 +13,7 @@
   --shadow: 0 12px 30px rgba(62,49,34,0.08);
   --shadow-sm: 0 4px 6px -1px rgba(91, 56, 29, 0.1), 0 2px 4px -1px rgba(91, 56, 29, 0.06);
   --shadow-md: 0 10px 15px -3px rgba(91, 56, 29, 0.1), 0 4px 6px -2px rgba(91, 56, 29, 0.05);
-  --font: 'Inter', sans-serif;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ── Base ── */
@@ -21,14 +21,27 @@ body, .stApp {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font) !important;
+  -webkit-font-smoothing: antialiased;
 }
 
 .stApp {
   overflow-x: hidden;
 }
 
+/* Clear the Streamlit top header bar so page content and titles are never chopped off */
 .stApp .block-container {
-  padding-top: 2rem;
+  padding-top: 5rem !important;
+  padding-bottom: 4.5rem !important;
+  padding-left: 2rem !important;
+  padding-right: 2rem !important;
+  max-width: 1200px;
+}
+
+/* Ensure Streamlit top header has a matching transparent/frosted background */
+[data-testid="stHeader"] {
+  background: rgba(247, 243, 235, 0.85) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
 }
 
 /* ── Sidebar header & collapse icon ── */
@@ -37,8 +50,7 @@ body, .stApp {
   padding: 0.5rem 0.75rem;
 }
 
-/* The collapse button's span contains a Material Symbols ligature.
-   We must restore the correct font so it renders as an icon, not text. */
+/* Material Symbols icon support */
 [data-testid="stSidebarHeader"] button span,
 [data-testid="collapsedControl"] span,
 [data-testid="stSidebarCollapseButton"] span,
@@ -67,7 +79,6 @@ span.material-symbols-rounded {
   box-shadow: 4px 0 15px rgba(0,0,0,0.1);
 }
 
-/* General text in sidebar gets cream colour */
 [data-testid="stSidebar"] p,
 [data-testid="stSidebar"] span,
 [data-testid="stSidebar"] label,
@@ -80,14 +91,12 @@ span.material-symbols-rounded {
   font-family: var(--font) !important;
 }
 
-/* Sidebar radio buttons: keep readable */
 [data-testid="stSidebar"] [data-testid="stRadio"] label,
 [data-testid="stSidebar"] [data-testid="stRadio"] p,
 [data-testid="stSidebar"] [data-testid="stRadio"] span {
   color: #f8efe4 !important;
 }
 
-/* Sidebar selectbox / input: dark text on light background */
 [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] span,
 [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] div,
 [data-testid="stSidebar"] .stTextInput input {
@@ -100,10 +109,6 @@ span.material-symbols-rounded {
 .stSidebar h3,
 .stSidebar p {
   color: #f8efe4 !important;
-}
-
-.stSidebar .css-1lcbmhc.e16nr0p33 {
-  padding: 1rem 1rem 0.5rem;
 }
 
 .sidebar-panel {
@@ -126,16 +131,35 @@ span.material-symbols-rounded {
   font-weight: 600 !important;
   color: var(--ink);
   position: relative;
+  line-height: 1.3 !important;
+}
+
+.stApp h1 {
+  font-size: 1.85rem !important;
+  margin-top: 0.2rem !important;
+  margin-bottom: 0.4rem !important;
+}
+
+.stApp h2 {
+  font-size: 1.45rem !important;
+  margin-top: 0.3rem !important;
+  margin-bottom: 0.4rem !important;
+}
+
+.stApp h3 {
+  font-size: 1.2rem !important;
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.35rem !important;
 }
 
 .stApp h1::after, .stApp h2::after, .stApp h3::after {
   content: "";
   display: block;
-  width: 4rem;
+  width: 3.5rem;
   height: 3px;
   background: var(--accent);
   border-radius: 2px;
-  margin-top: .5rem;
+  margin-top: .4rem;
   opacity: .85;
 }
 
@@ -143,7 +167,7 @@ span.material-symbols-rounded {
 .section-divider {
   height: 1px;
   width: 100%;
-  margin: 2rem 0 1.5rem;
+  margin: 1.8rem 0 1.2rem;
   background: linear-gradient(90deg, rgba(143,92,50,0), rgba(143,92,50,0.24), rgba(143,92,50,0));
 }
 
@@ -152,18 +176,19 @@ span.material-symbols-rounded {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1rem 0 1.5rem;
-  margin-bottom: 1rem;
+  padding: 0.75rem 0 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .brand-logo {
-  width: 76px;
+  width: 72px;
   height: auto;
-  border-radius: 18px;
+  border-radius: 16px;
   box-shadow: var(--shadow);
   background: white;
   padding: .35rem;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  flex-shrink: 0;
 }
 
 .brand-logo:hover {
@@ -173,40 +198,43 @@ span.material-symbols-rounded {
 
 .brand-title {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.85rem;
   letter-spacing: -.02em;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .brand-subtitle {
   margin: .25rem 0 0;
-  font-size: .95rem;
+  font-size: .9rem;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: .06em;
   font-weight: 500;
 }
 
 /* ── Metric Cards ── */
 .metric-card {
   background: var(--surface);
-  border-left: 6px solid var(--accent);
+  border-left: 5px solid var(--accent);
   border-radius: 12px;
-  padding: 1.4rem;
+  padding: 1.25rem 1.1rem;
   box-shadow: var(--shadow-sm);
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
+  margin-bottom: 0.75rem;
 }
 
 .metric-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
 .metric-card h2, .metric-card h3 {
-  margin: 0;
+  margin: 0 !important;
   color: var(--accent-strong) !important;
-  font-size: 2rem;
+  font-size: 1.85rem !important;
   font-weight: 700 !important;
+  line-height: 1.1 !important;
 }
 
 .metric-card h2::after, .metric-card h3::after {
@@ -215,12 +243,12 @@ span.material-symbols-rounded {
 
 .metric-card small {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 /* ── Buttons ── */
@@ -234,6 +262,7 @@ button[kind="primary"] {
   box-shadow: 0 4px 12px rgba(91,56,29,.2) !important;
   font-weight: 600 !important;
   font-family: var(--font) !important;
+  min-height: 2.5rem !important;
   transition: all 0.25s ease !important;
 }
 
@@ -245,7 +274,6 @@ button[kind="primary"]:hover {
   filter: brightness(1.05);
 }
 
-/* Button text must be white */
 .stButton > button p,
 .stButton > button span,
 .stButton > button div {
@@ -259,6 +287,7 @@ button[kind="secondary"],
   color: var(--accent-strong) !important;
   border: 1px solid var(--accent) !important;
   box-shadow: none !important;
+  min-height: 2.5rem !important;
 }
 
 button[kind="secondary"] p,
@@ -276,6 +305,7 @@ button[kind="secondary"] span,
   border: 1px solid rgba(91,56,29,.28) !important;
   box-shadow: 0 4px 12px rgba(255,255,255,.16) !important;
   font-weight: 700 !important;
+  min-height: 2.4rem !important;
 }
 
 [data-testid="stSidebar"] .stButton > button:hover,
@@ -290,20 +320,72 @@ button[kind="secondary"] span,
   color: #4e2d16 !important;
 }
 
-/* ── Tabs ── */
+/* ── Tabs — Clean Pill Buttons with Smooth Horizontal Scroll ── */
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"],
+.stTabs [role="tablist"]::after,
+.stTabs [role="tablist"]::before {
+  display: none !important;
+  height: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.stTabs [role="tablist"] {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+  padding: 0.25rem 0.2rem 0.6rem !important;
+  margin-bottom: 0.75rem !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  border-bottom: none !important;
+}
+
+.stTabs [role="tablist"]::-webkit-scrollbar {
+  display: none !important;
+}
+
 .stTabs [role="tab"] {
   border-radius: 999px !important;
-  background: rgba(91,56,29,.08) !important;
-  border: 1px solid rgba(143,92,50,.12) !important;
+  background: rgba(91, 56, 29, 0.08) !important;
+  border: 1px solid rgba(143, 92, 50, 0.15) !important;
   color: var(--ink) !important;
   font-family: var(--font) !important;
   font-weight: 500 !important;
+  font-size: 0.88rem !important;
+  padding: 0.45rem 1rem !important;
+  min-height: 2.2rem !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   transition: all 0.2s ease !important;
+  box-shadow: 0 1px 2px rgba(62, 49, 34, 0.04) !important;
+}
+
+.stTabs [role="tab"]:hover {
+  background: rgba(91, 56, 29, 0.14) !important;
+  color: var(--accent-strong) !important;
 }
 
 .stTabs [role="tab"][aria-selected="true"] {
   background: var(--accent) !important;
-  color: #fff !important;
+  color: #ffffff !important;
+  border-color: var(--accent-strong) !important;
+  box-shadow: 0 2px 8px rgba(91, 56, 29, 0.22) !important;
+}
+
+.stTabs [role="tab"][aria-selected="true"] p,
+.stTabs [role="tab"][aria-selected="true"] span,
+.stTabs [role="tab"][aria-selected="true"] div {
+  color: #ffffff !important;
+  font-weight: 600 !important;
 }
 
 /* ── Expander ── */
@@ -313,13 +395,24 @@ button[kind="secondary"] span,
   font-family: var(--font) !important;
 }
 
-/* ── Inputs ── */
+/* ── Forms ── */
+[data-testid="stForm"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  padding: 1.25rem !important;
+  margin-bottom: 1.25rem !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* ── Inputs (Prevent mobile auto-zoom with 16px minimum font size) ── */
 .stTextInput > div > div > input,
 .stSelectbox > div > div > div,
 .stTextArea > div > div > textarea {
   border-radius: 8px !important;
   border-color: var(--border) !important;
   font-family: var(--font) !important;
+  font-size: 0.95rem !important;
   transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
 }
 
@@ -351,7 +444,7 @@ button[kind="secondary"] span,
   border-radius: 16px;
   padding: 1.4rem;
   max-width: 420px;
-  width: 92%;
+  width: 100%;
   margin: 0.4rem 0 0 0;
   box-shadow: 0 8px 20px rgba(62,49,34,0.08);
 }
@@ -362,27 +455,18 @@ button[kind="secondary"] span,
   font-size: 1.25rem;
 }
 
-.login-card .stButton > button,
-.login-card .stDownloadButton > button {
-  width: 100% !important;
-  padding: 0.7rem 1rem !important;
-  border-radius: 10px !important;
-  font-weight: 600 !important;
-}
-
-.login-card .stForm {
-  padding: 0 !important;
-}
-
-/* ── DataFrames ── */
-[data-testid="stDataFrame"] {
+/* ── DataFrames & Tables ── */
+[data-testid="stDataFrame"],
+[data-testid="stTable"] {
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto !important;
+  max-width: 100% !important;
+  -webkit-overflow-scrolling: touch !important;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border);
 }
 
-/* ── Footer — fixed single-line bar ── */
+/* ── Footer — Desktop Fixed Bar ── */
 .page-footer {
   position: fixed;
   bottom: 0;
@@ -402,7 +486,7 @@ button[kind="secondary"] span,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: rgba(247, 243, 235, 0.92);
+  background: rgba(247, 243, 235, 0.94);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border-top: 1px solid rgba(143, 92, 50, 0.18);
@@ -412,11 +496,6 @@ button[kind="secondary"] span,
 .page-footer strong {
   color: var(--accent-strong);
   font-weight: 700;
-}
-
-/* Add bottom padding to the main content so it doesn't hide behind the footer */
-.stApp .block-container {
-  padding-bottom: 3.5rem !important;
 }
 
 /* ── Sidebar Footer ── */
@@ -459,141 +538,156 @@ button[kind="secondary"] span,
   font-weight: 400;
 }
 
-/* ── Responsive ── */
-/* ══════════════════════════════════════
-   RESPONSIVE — Tablet  (≤ 760px)
-   ══════════════════════════════════════ */
-@media (max-width: 760px) {
 
-  /* Main content */
+/* ══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE MEDIA QUERIES
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tablet & Small Laptops (≤ 768px) ── */
+@media (max-width: 768px) {
+
+  /* Safe clearance below Streamlit header */
   .stApp .block-container {
-    padding: 1rem 1rem 4rem !important;
+    padding-top: 4.5rem !important;
+    padding-bottom: 1.5rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
   }
+
+  /* Headings */
+  .stApp h1 { font-size: 1.5rem !important; }
+  .stApp h2 { font-size: 1.25rem !important; }
+  .stApp h3 { font-size: 1.1rem !important; }
 
   /* Brand header */
   .brand-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.6rem;
-    padding: 0.75rem 0 1rem;
+    gap: 0.5rem;
+    padding: 0.5rem 0 1rem;
   }
   .brand-logo {
     width: 60px;
   }
   .brand-title {
-    font-size: 1.5rem;
+    font-size: 1.45rem;
   }
   .brand-subtitle {
     font-size: 0.8rem;
   }
 
-  /* Metric cards: allow wrapping but keep usable size */
+  /* Metric cards */
   .metric-card {
     padding: 1rem;
   }
   .metric-card h2, .metric-card h3 {
-    font-size: 1.6rem !important;
+    font-size: 1.5rem !important;
   }
 
-  /* Login */
-  .login-page {
-    padding: 0.75rem 0;
-  }
-  .login-card {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 1.25rem !important;
-    border-radius: 12px;
-    margin: 0 !important;
+  /* Forms */
+  [data-testid="stForm"] {
+    padding: 1rem !important;
+    border-radius: 12px !important;
   }
 
-  /* Sidebar panel */
+  /* Mobile Footer — Relative flow so it NEVER covers inputs or buttons */
+  .page-footer {
+    position: static !important;
+    height: auto !important;
+    min-height: unset !important;
+    padding: 1.25rem 0.75rem !important;
+    margin-top: 2.5rem !important;
+    margin-bottom: 0 !important;
+    text-align: center !important;
+    white-space: normal !important;
+    font-size: 0.72rem !important;
+    line-height: 1.5 !important;
+    border-top: 1px solid rgba(143, 92, 50, 0.18) !important;
+    background: rgba(247, 243, 235, 0.95) !important;
+    box-shadow: none !important;
+  }
+
   .sidebar-panel {
     padding: 0.75rem;
   }
 
-  /* Fixed footer — shrink text and allow 2-line wrap */
-  .page-footer {
-    height: auto;
-    min-height: 2.4rem;
-    padding: 0.45rem 1rem;
-    text-align: center;
-    white-space: normal;
-    font-size: 0.7rem;
-    line-height: 1.5;
-  }
-
-  /* Sidebar footer */
   .sidebar-footer {
     margin-top: 1.5rem;
   }
 }
 
-/* ══════════════════════════════════════
-   RESPONSIVE — Small phone  (≤ 480px)
-   ══════════════════════════════════════ */
+/* ── Mobile Phones (≤ 480px) ── */
 @media (max-width: 480px) {
 
-  /* More compact content */
   .stApp .block-container {
-    padding: 0.75rem 0.75rem 4.5rem !important;
+    padding-top: 4.25rem !important;
+    padding-bottom: 1.5rem !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
   }
 
-  /* Headings scale down */
-  .stApp h1 { font-size: 1.4rem !important; }
-  .stApp h2 { font-size: 1.2rem !important; }
+  /* Typography scale */
+  .stApp h1 { font-size: 1.35rem !important; }
+  .stApp h2 { font-size: 1.18rem !important; }
   .stApp h3 { font-size: 1.05rem !important; }
 
-  /* Underline accent shorter on small screens */
   .stApp h1::after, .stApp h2::after, .stApp h3::after {
     width: 2.5rem;
+    height: 2.5px;
+    margin-top: 0.35rem;
   }
 
-  /* Brand */
-  .brand-title {
-    font-size: 1.25rem;
-  }
-  .brand-logo {
-    width: 50px;
+  /* Tabs compact on small screens */
+  .stTabs [role="tab"] {
+    font-size: 0.82rem !important;
+    padding: 0.35rem 0.8rem !important;
+    min-height: 2rem !important;
   }
 
-  /* Cards go full-width, tighter */
+  /* Cards full-width and compact */
   .metric-card {
     padding: 0.85rem 0.75rem;
     border-radius: 10px;
   }
   .metric-card h2, .metric-card h3 {
-    font-size: 1.4rem !important;
+    font-size: 1.35rem !important;
   }
   .metric-card small {
     font-size: 0.72rem;
   }
 
-  /* Login card full-width */
+  /* Forms compact */
+  [data-testid="stForm"] {
+    padding: 0.85rem 0.7rem !important;
+    border-radius: 10px !important;
+  }
+
+  /* Input fields prevent auto-zoom */
+  .stTextInput > div > div > input,
+  .stSelectbox > div > div > div,
+  .stTextArea > div > div > textarea {
+    font-size: 16px !important;
+  }
+
+  /* Buttons touch-friendly */
+  .stButton > button,
+  .stDownloadButton > button {
+    min-height: 2.6rem !important;
+    font-size: 0.92rem !important;
+  }
+
   .login-card {
     padding: 1rem !important;
-    border-radius: 10px;
+    border-radius: 12px;
   }
 
-  /* Footer even more compact */
   .page-footer {
-    font-size: 0.65rem;
-    padding: 0.4rem 0.75rem;
+    font-size: 0.68rem !important;
+    padding: 1rem 0.5rem !important;
   }
 
-  /* Sidebar footer tighter */
   .sidebar-footer-brand { font-size: 0.8rem; }
   .sidebar-footer-sub   { font-size: 0.7rem; }
   .sidebar-footer-copy  { font-size: 0.65rem; }
-
-  /* Buttons full-width on very small screens */
-  .stButton > button {
-    width: 100% !important;
-  }
-
-  /* Tabs wrap nicely */
-  .stTabs [role="tablist"] {
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
 }
+

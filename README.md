@@ -4,34 +4,39 @@ Transparent Practical Evaluation & Monitoring System for the Department of Compu
 
 ## What is included
 
-This repository contains a runnable Streamlit MVP with a production-shaped boundary:
+- Institutional Google Workspace Sign-In only (`@gujaratvidyapith.org`), eliminating email/password authentication risks.
+- Automatic Administrator detection via `ADMIN_EMAILS` configuration in `.env` or `secrets.toml`.
+- First-time student onboarding workflow (Programme & Semester selection linked to institutional enrollment ID).
+- Auto-provisioned Faculty accounts upon first Google sign-in.
+- SQLAlchemy 2 ORM with MySQL 8 production connection pooling and SQLite development fallback.
+- Practical creation, bulk assignment, deadline tracking, GitHub URL submission, duplicate-safe editing, evaluation, automatic grade calculation, and audit logs.
+- Plotly dashboard, marks export to Excel/PDF, and automated test suite.
 
-- Role-based login for Administrator, Faculty, and Student.
-- SQLAlchemy 2 ORM with MySQL 8 support and SQLite development fallback.
-- Practical creation, bulk assignment, deadline tracking, GitHub URL submission, duplicate-safe editing, late status, evaluation, automatic grade calculation, and audit logs.
-- Plotly dashboard, marks export to Excel/PDF, and deterministic seed data.
-- Docker packaging, focused tests, architecture/SRS/security/deployment documentation.
+## Configuration & Quick Start
 
-The system intentionally keeps repository validation URL-based in this first release. GitHub API checks for README, branch, and repository contents belong behind a configured GitHub App/token in a later integration, rather than being guessed from an unauthenticated URL.
+1. Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` (or configure `.env`):
+   ```toml
+   # Google OAuth 2.0
+   GOOGLE_CLIENT_ID     = "your-client-id.apps.googleusercontent.com"
+   GOOGLE_CLIENT_SECRET = "your-client-secret"
+   GOOGLE_REDIRECT_URI  = "http://localhost:8501"
+   GOOGLE_HOSTED_DOMAIN = "gujaratvidyapith.org"
 
-## Quick start
+   # Administrator emails
+   ADMIN_EMAILS = "admin@gujaratvidyapith.org,hod.cs@gujaratvidyapith.org"
 
-```powershell
-python -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-.venv\Scripts\python seed.py
-.venv\Scripts\streamlit run app.py
-```
+   # MySQL Database (or leave empty for SQLite dev fallback)
+   DATABASE_URL = "mysql+pymysql://tpems_user:password@localhost:3306/tpems"
+   ```
 
-Demo accounts after seeding:
+2. Run the application:
+   ```bash
+   streamlit run app.py
+   ```
 
-- `admin` / `Admin@123`
-- `faculty` / `Faculty@123`
-- `student1` / `Student@123`
-
-Change all demo passwords before deployment. For MySQL, set `DATABASE_URL=mysql+pymysql://user:password@host:3306/tpems`.
+3. Sign in via **Sign in with Google** using an authorized `@gujaratvidyapith.org` account. Any email specified in `ADMIN_EMAILS` automatically receives Administrator access.
 
 ## Production checklist
 
-Use a secrets manager for `SECRET_KEY`, SMTP credentials, and the database URL. Put Streamlit behind HTTPS and an identity-aware reverse proxy, use Alembic migrations instead of `create_all`, configure scheduled reminders, add a GitHub App for repository checks, and back up MySQL with encrypted off-site retention. See [docs/deployment.md](docs/deployment.md) and [docs/security.md](docs/security.md).
+Use a secrets manager for `SECRET_KEY`, Google OAuth secrets, and the MySQL database URL. Put Streamlit behind HTTPS and an Nginx reverse proxy with WebSocket support (`proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade;`), use Alembic migrations instead of `create_all`, and back up MySQL daily. See [docs/deployment.md](docs/deployment.md) and [docs/security.md](docs/security.md).
+

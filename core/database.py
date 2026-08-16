@@ -8,8 +8,22 @@ class Base(DeclarativeBase):
     pass
 
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-engine = create_engine(settings.database_url, connect_args=connect_args, pool_pre_ping=True)
+is_sqlite = settings.database_url.startswith("sqlite")
+if is_sqlite:
+    connect_args = {"check_same_thread": False}
+    engine = create_engine(
+        settings.database_url,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+    )
+else:
+    engine = create_engine(
+        settings.database_url,
+        pool_size=20,
+        max_overflow=30,
+        pool_recycle=3600,
+        pool_pre_ping=True,
+    )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
@@ -20,12 +34,14 @@ def run_migrations() -> None:
     Falls back silently to init_db() if Alembic is unavailable.
     """
     try:
+        import os
         from alembic.config import Config
         from alembic.runtime.migration import MigrationContext
         from alembic.script import ScriptDirectory
-        import os
 
-        alembic_cfg = Config(os.path.join(os.path.dirname(__file__), "alembic.ini"))
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        alembic_ini_path = os.path.join(base_dir, "alembic.ini")
+        alembic_cfg = Config(alembic_ini_path)
         alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
 
         script = ScriptDirectory.from_config(alembic_cfg)

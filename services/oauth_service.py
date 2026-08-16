@@ -100,9 +100,11 @@ def parse_student_enrollment_from_email(email: str) -> str | None:
 def authenticate_google_user(db: Session, google_info: dict, ip: str | None = None) -> tuple[User | None, str | None]:
     """Authenticate or verify a user from Google profile info.
     
+    If the email is listed in settings.admin_emails, automatically assigns Administrator role.
     If an existing user is found, logs them in.
     If a student signs in for the first time, returns ('FIRST_TIME_STUDENT_SETUP')
     so the frontend can prompt for Department, Programme, and Semester selection.
+    If a faculty signs in for the first time, returns ('FIRST_TIME_FACULTY_SETUP').
     """
     email = (google_info.get("email") or "").strip()
     if not email:
@@ -113,6 +115,42 @@ def authenticate_google_user(db: Session, google_info: dict, ip: str | None = No
         required_suffix = f"@{settings.google_hosted_domain.lower()}"
         if not email.lower().endswith(required_suffix):
             return None, f"Only @{settings.google_hosted_domain} institutional accounts are permitted to sign in."
+
+    # Administrator detection via configured admin_emails list
+    if settings.is_admin_email(email):
+        admin_role = ensure_role(db, "Administrator")
+        user = db.scalar(
+            select(User).where(
+                (func.lower(User.email) == email.lower())
+                | (func.lower(User.username) == email.lower())
+            )
+        )
+        google_name = (google_info.get("name") or email.split("@")[0]).strip()
+        if not user:
+            user = User(
+                username=email,
+                full_name=google_name or "System Administrator",
+                email=email.lower(),
+                password_hash=hash_password(secrets.token_urlsafe(16)),
+                role_id=admin_role.id,
+                is_active=True,
+                account_locked=False,
+            )
+            db.add(user)
+            db.flush()
+        else:
+            user.role_id = admin_role.id
+            user.is_active = True
+            user.account_locked = False
+            if google_name and (not user.full_name or user.full_name == user.username):
+                user.full_name = google_name
+
+        reset_failed_attempts(db, user)
+        user.last_login = utc_now()
+        db.add(user)
+        record_login(db, user, user.username, "Administrator", "success:google-oauth-admin", ip)
+        db.commit()
+        return user, None
 
     user = db.scalar(select(User).where((func.lower(User.email) == email.lower()) | (func.lower(User.username) == email.lower())))
     

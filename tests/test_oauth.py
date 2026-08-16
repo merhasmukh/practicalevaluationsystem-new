@@ -296,3 +296,74 @@ def test_authenticate_returns_faculty_setup_signal_for_non_student_institutional
         authenticated_user, err = authenticate_google_user(db, {"email": email})
         assert authenticated_user is None, f"Should not return a user for {email}"
         assert err == "FIRST_TIME_FACULTY_SETUP", f"Expected FIRST_TIME_FACULTY_SETUP for {email}, got: {err}"
+
+
+def test_authenticate_google_user_auto_creates_admin_from_admin_emails():
+    """When an email is in settings.admin_emails, authenticate_google_user auto-provisions and logs in as Admin."""
+    db = setup_db()
+    custom_settings = Settings(admin_emails=("admin@gujaratvidyapith.org", "hod.cs@gujaratvidyapith.org"))
+    with patch("services.oauth_service.settings", custom_settings):
+        google_info = {
+            "email": "hod.cs@gujaratvidyapith.org",
+            "name": "Head of Department",
+            "email_verified": True,
+        }
+        user, err = authenticate_google_user(db, google_info)
+        assert err is None
+        assert user is not None
+        assert user.email == "hod.cs@gujaratvidyapith.org"
+        assert user.role.name == "Administrator"
+        assert user.is_active is True
+        assert user.full_name == "Head of Department"
+
+
+def test_authenticate_google_user_promotes_existing_user_to_admin():
+    """When an existing user signs in and is in settings.admin_emails, they are promoted to Administrator."""
+    db = setup_db()
+    faculty_role = ensure_role(db, "Faculty")
+    user = User(
+        username="existing_prof",
+        full_name="Prof. Existing",
+        email="prof@gujaratvidyapith.org",
+        password_hash=hash_password("dummy"),
+        role_id=faculty_role.id,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+
+    custom_settings = Settings(admin_emails=("prof@gujaratvidyapith.org",))
+    with patch("services.oauth_service.settings", custom_settings):
+        google_info = {
+            "email": "prof@gujaratvidyapith.org",
+            "name": "Prof. Existing Updated",
+        }
+        auth_user, err = authenticate_google_user(db, google_info)
+        assert err is None
+        assert auth_user is not None
+        assert auth_user.id == user.id
+        assert auth_user.role.name == "Administrator"
+
+
+def test_config_admin_emails_parsing():
+    from core.config import _resolve_admin_emails
+    with patch.dict("os.environ", {"ADMIN_EMAILS": "admin1@gujaratvidyapith.org, admin2@gujaratvidyapith.org"}):
+        emails = _resolve_admin_emails()
+        assert "admin1@gujaratvidyapith.org" in emails
+        assert "admin2@gujaratvidyapith.org" in emails
+
+
+def test_config_mysql_discrete_parameters():
+    from core.config import _resolve_database_url
+    env_vars = {
+        "DATABASE_URL": "",
+        "MYSQL_HOST": "db.example.com",
+        "MYSQL_PORT": "3307",
+        "MYSQL_USER": "tpems_admin",
+        "MYSQL_PASSWORD": "secretpassword",
+        "MYSQL_DATABASE": "tpems_production",
+    }
+    with patch.dict("os.environ", env_vars):
+        url = _resolve_database_url()
+        assert url == "mysql+pymysql://tpems_admin:secretpassword@db.example.com:3307/tpems_production"
+

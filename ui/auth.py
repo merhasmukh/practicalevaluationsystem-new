@@ -1,8 +1,10 @@
-import streamlit as st
-from core.session_manager import create_session_token
-from datetime import datetime, timezone
+import base64
+import os
 import re
+from datetime import datetime, timezone
+import streamlit as st
 from sqlalchemy import select
+from core.session_manager import create_session_token
 
 
 def _rerun() -> None:
@@ -15,23 +17,43 @@ def _rerun() -> None:
             pass
 
 
-def render_login() -> None:
-    # Centered mobile-first card layout — Google sign-in is immediately visible at the top
-    col_left, col_center, col_right = st.columns([1, 2.4, 1])
-    with col_center:
-        st.markdown("<div style='text-align: center; margin-bottom: 0.5rem;'>", unsafe_allow_html=True)
-        st.image("assets/gujarat-vidyapith-logo.png", width=85)
-        st.markdown("</div>", unsafe_allow_html=True)
+@st.cache_data
+def _get_logo_base64() -> str:
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "gujarat-vidyapith-logo.png")
+    if os.path.exists(logo_path):
+        try:
+            with open(logo_path, "rb") as f:
+                return base64.b64encode(f.read()).decode("utf-8")
+        except Exception:
+            return ""
+    return ""
 
+
+def render_login() -> None:
+    logo_b64 = _get_logo_base64()
+    logo_img_tag = (
+        f'<img src="data:image/png;base64,{logo_b64}" alt="Gujarat Vidyapith" style="width: 140px; max-width: 45vw; height: auto; margin: 0 auto; display: block;" />'
+        if logo_b64
+        else ""
+    )
+
+    # Centered card layout
+    col_left, col_center, col_right = st.columns([1, 2.2, 1])
+    with col_center:
         st.markdown(
-            """
+            f"""
             <div style='text-align: center; margin-bottom: 1.25rem;'>
-                <h3 style='margin: 0.2rem 0 0.1rem 0; font-size: 1.35rem;'>Gujarat Vidyapith</h3>
-                <div style='font-size: 0.88rem; color: var(--muted); font-weight: 500; margin-bottom: 0.35rem;'>
+                <div style='display: flex; justify-content: center; align-items: center; margin-bottom: 0.85rem;'>
+                    {logo_img_tag}
+                </div>
+                <div style='font-size: 1.6rem; font-weight: 700; color: var(--ink); line-height: 1.25; margin-bottom: 0.25rem;'>
+                    Gujarat Vidyapith
+                </div>
+                <div style='font-size: 0.95rem; color: var(--muted); font-weight: 500; margin-bottom: 0.35rem;'>
                     Department of Computer Science
                 </div>
-                <div style='font-size: 0.95rem; font-weight: 600; color: var(--accent-strong);'>
-                    Practical Evaluation &amp; Management System
+                <div style='font-size: 1.05rem; font-weight: 600; color: var(--accent-strong); line-height: 1.35;'>
+                    Transparent Practical Evaluation &amp; Management System
                 </div>
             </div>
             """,
@@ -79,6 +101,7 @@ def render_login() -> None:
 
 
 
+
 def render_student_onboarding(db, google_info: dict) -> None:
     """Render the first-time student profile onboarding form."""
     from models.schema import Department, Program
@@ -87,12 +110,19 @@ def render_student_onboarding(db, google_info: dict) -> None:
     email = (google_info.get("email") or "").strip()
     google_name = (google_info.get("name") or email.split("@")[0]).strip()
     extracted_enrollment = parse_student_enrollment_from_email(email) or email.split("@")[0].split(".gvp")[0]
+    logo_b64 = _get_logo_base64()
+    logo_img_tag = (
+        f'<img src="data:image/png;base64,{logo_b64}" alt="Gujarat Vidyapith" style="width: 100px; height: auto; margin: 0 auto; display: block;" />'
+        if logo_b64
+        else ""
+    )
 
     st.markdown("<div style='max-width: 620px; margin: 0 auto;'>", unsafe_allow_html=True)
-    st.image("assets/gujarat-vidyapith-logo.png", width=90)
-    st.markdown("## 🎓 First-Time Student Profile Setup")
-    st.caption("Please select your academic details to complete registration and access your practicals.")
+    if logo_img_tag:
+        st.markdown(f"<div style='display: flex; justify-content: center; margin-bottom: 0.5rem;'>{logo_img_tag}</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; margin-bottom: 1rem;'><h2 style='margin-top: 0;'>🎓 First-Time Student Profile Setup</h2><div style='font-size: 0.9rem; color: var(--muted);'>Please select your academic details to complete registration and access your practicals.</div></div>", unsafe_allow_html=True)
     st.info(f"Signing in as **{email}**")
+
 
     departments = list(db.scalars(select(Department).order_by(Department.name)))
     if not departments:

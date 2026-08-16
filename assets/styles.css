@@ -171,7 +171,20 @@ span.material-symbols-rounded {
   background: linear-gradient(90deg, rgba(143,92,50,0), rgba(143,92,50,0.24), rgba(143,92,50,0));
 }
 
-/* ── Brand Header ── */
+/* ── Images & Brand Logo ── */
+[data-testid="stImage"] {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin: 0 auto !important;
+}
+
+[data-testid="stImage"] img {
+  display: block !important;
+  margin: 0 auto !important;
+  border-radius: 14px;
+}
+
 .brand-header {
   display: flex;
   align-items: center;
@@ -181,7 +194,7 @@ span.material-symbols-rounded {
 }
 
 .brand-logo {
-  width: 72px;
+  width: 76px;
   height: auto;
   border-radius: 16px;
   box-shadow: var(--shadow);
@@ -195,6 +208,7 @@ span.material-symbols-rounded {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
+
 
 .brand-title {
   margin: 0;

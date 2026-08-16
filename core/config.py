@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 import os
+import urllib.parse
 import warnings
 
 
 def _parse_env_line(line: str) -> tuple[str, str] | None:
+
     line = line.strip()
     if not line or line.startswith("#"):
         return None
@@ -32,12 +34,19 @@ def _parse_env_line(line: str) -> tuple[str, str] | None:
 
 
 def _load_env_file() -> None:
-    """Load key-value pairs from .env file into os.environ if present."""
+    """Load key-value pairs from .env / env.dev files into os.environ if present."""
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidates = [
         os.path.join(os.getcwd(), ".env"),
         os.path.join(base_dir, ".env"),
+        os.path.join(os.getcwd(), "env.dev"),
+        os.path.join(base_dir, "env.dev"),
+        os.path.join(os.getcwd(), ".env.dev"),
+        os.path.join(base_dir, ".env.dev"),
+        os.path.join(os.getcwd(), ".env.local"),
+        os.path.join(base_dir, ".env.local"),
     ]
+    loaded = False
     for path in candidates:
         if os.path.isfile(path):
             try:
@@ -48,12 +57,24 @@ def _load_env_file() -> None:
                             key, val = parsed
                             # Overwrite or set in environ
                             os.environ[key] = val
+                loaded = True
             except Exception:
                 pass
-            break
+            if loaded and path.endswith(".env"):
+                break
 
 
 _load_env_file()
+
+
+def _clean_str(val: any) -> str:
+    """Clean and strip quotes from string configuration."""
+    if val is None:
+        return ""
+    s = str(val).strip()
+    if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+        s = s[1:-1].strip()
+    return s
 
 
 def _get_setting_raw(key: str, default: any = None) -> any:
@@ -93,40 +114,55 @@ def _get_setting(key: str, default: str = "") -> str:
         return default
     if isinstance(val, (list, tuple, dict)):
         return str(val)
-    return str(val)
+    cleaned = _clean_str(val)
+    return cleaned if cleaned != "" else default
+
 
 
 def _resolve_database_url() -> str:
     """Resolve database URL from explicit DATABASE_URL or discrete MySQL settings."""
-    explicit_url = _get_setting("DATABASE_URL", "").strip()
+    explicit_url = _clean_str(_get_setting("DATABASE_URL", ""))
     if explicit_url:
+        # Auto-encode passwords containing special characters (like '@') in explicit URLs
+        if "://" in explicit_url:
+            scheme, rest = explicit_url.split("://", 1)
+            authority = rest.split("/", 1)[0]
+            path_part = rest[len(authority):]
+            if authority.count("@") > 1 and ":" in authority:
+                userinfo, host_part = authority.rsplit("@", 1)
+                if ":" in userinfo:
+                    u, p = userinfo.split(":", 1)
+                    explicit_url = f"{scheme}://{urllib.parse.quote_plus(u)}:{urllib.parse.quote_plus(p)}@{host_part}{path_part}"
         return explicit_url
 
     # Check discrete MySQL environment/secrets
-    host = _get_setting("MYSQL_HOST") or _get_setting("DB_HOST")
-    user = _get_setting("MYSQL_USER") or _get_setting("DB_USER")
-    password = _get_setting("MYSQL_PASSWORD") or _get_setting("DB_PASSWORD")
-    db_name = _get_setting("MYSQL_DATABASE") or _get_setting("DB_NAME")
-    port = _get_setting("MYSQL_PORT") or _get_setting("DB_PORT") or "3306"
+    host = _clean_str(_get_setting("MYSQL_HOST") or _get_setting("DB_HOST"))
+    user = _clean_str(_get_setting("MYSQL_USER") or _get_setting("DB_USER"))
+    password = _clean_str(_get_setting("MYSQL_PASSWORD") or _get_setting("DB_PASSWORD"))
+    db_name = _clean_str(_get_setting("MYSQL_DATABASE") or _get_setting("DB_NAME"))
+    port = _clean_str(_get_setting("MYSQL_PORT") or _get_setting("DB_PORT") or "3306")
 
     # Also check [mysql] section in secrets.toml if available
     try:
         import streamlit as st
         if hasattr(st, "secrets") and "mysql" in st.secrets:
             sec = st.secrets["mysql"]
-            host = host or str(sec.get("host", ""))
-            user = user or str(sec.get("user", ""))
-            password = password or str(sec.get("password", ""))
-            db_name = db_name or str(sec.get("database", "") or sec.get("db", ""))
-            port = port or str(sec.get("port", "3306"))
+            host = host or _clean_str(sec.get("host", ""))
+            user = user or _clean_str(sec.get("user", ""))
+            password = password or _clean_str(sec.get("password", ""))
+            db_name = db_name or _clean_str(sec.get("database", "") or sec.get("db", ""))
+            port = port or _clean_str(sec.get("port", "3306"))
     except Exception:
         pass
 
     if host and user and db_name:
-        # Build MySQL connection URL
-        return f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}"
+        # Properly URL-encode username and password to handle special characters (e.g. '@', ':', '#')
+        encoded_user = urllib.parse.quote_plus(user)
+        encoded_password = urllib.parse.quote_plus(password)
+        return f"mysql+pymysql://{encoded_user}:{encoded_password}@{host}:{port}/{db_name}"
 
     return "sqlite:///tpems.db"
+
 
 
 def _resolve_admin_emails() -> tuple[str, ...]:
@@ -144,6 +180,7 @@ def _resolve_admin_emails() -> tuple[str, ...]:
                 raw = admin_sec.get("emails") or admin_sec.get("email")
         except Exception:
             pass
+
 
     emails: list[str] = []
     if isinstance(raw, (list, tuple, set)):

@@ -360,10 +360,21 @@ def test_config_mysql_discrete_parameters():
         "MYSQL_HOST": "db.example.com",
         "MYSQL_PORT": "3307",
         "MYSQL_USER": "tpems_admin",
-        "MYSQL_PASSWORD": "secretpassword",
+        "MYSQL_PASSWORD": "secret@password#123",
         "MYSQL_DATABASE": "tpems_production",
     }
     with patch.dict("os.environ", env_vars):
         url = _resolve_database_url()
-        assert url == "mysql+pymysql://tpems_admin:secretpassword@db.example.com:3307/tpems_production"
+        assert url == "mysql+pymysql://tpems_admin:secret%40password%23123@db.example.com:3307/tpems_production"
+
+
+def test_config_mysql_explicit_url_with_at_in_password():
+    from core.config import _resolve_database_url
+    env_vars = {
+        "DATABASE_URL": "mysql+pymysql://root:Pass@1920@localhost:3306/tpems",
+    }
+    with patch.dict("os.environ", env_vars):
+        url = _resolve_database_url()
+        assert url == "mysql+pymysql://root:Pass%401920@localhost:3306/tpems"
+
 

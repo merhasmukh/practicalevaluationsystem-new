@@ -102,26 +102,33 @@ def render_login() -> None:
             if not username.strip() or not password:
                 st.error("Please enter both your username/email and password.")
             else:
-                # authenticate() is imported here so it runs inside SessionLocal context
-                # The db session is passed through via the caller (app.py calls render_login
-                # inside `with SessionLocal() as db:` block).
-                # Since render_login doesn't receive db directly, we open a short-lived session.
                 from core.database import SessionLocal
+                # Read all lazy-loaded relationship fields INSIDE the session so
+                # they don't trigger a DetachedInstanceError after the context closes.
+                _auth_result = None
                 with SessionLocal() as _db:
                     user = authenticate(_db, username.strip(), password)
-                if user is None:
+                    if user is not None:
+                        _auth_result = {
+                            "id":    user.id,
+                            "name":  user.full_name,
+                            "role":  user.role.name,
+                            "email": user.email,
+                        }
+
+                if _auth_result is None:
                     st.error(
                         "Invalid credentials or your account has been locked. "
                         "Please check your username/password and try again."
                     )
                 else:
-                    st.session_state.user_id = user.id
-                    st.session_state.name = user.full_name
-                    st.session_state.role = user.role.name
-                    st.session_state.email = user.email
-                    st.session_state.department = getattr(user, "department", None)
+                    st.session_state.user_id = _auth_result["id"]
+                    st.session_state.name = _auth_result["name"]
+                    st.session_state.role = _auth_result["role"]
+                    st.session_state.email = _auth_result["email"]
+                    st.session_state.department = None
                     st.session_state.login_time = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
-                    st.query_params["session"] = create_session_token(user.id, user.role.name)
+                    st.query_params["session"] = create_session_token(_auth_result["id"], _auth_result["role"])
                     st.rerun()
 
         # ── Register link (students only) ─────────────────────────────────────

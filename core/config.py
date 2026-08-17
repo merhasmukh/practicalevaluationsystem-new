@@ -228,6 +228,8 @@ class Settings:
     # (only for public deployments with a registered Google redirect URI).
     # Defaults to False — hidden on private/local IP deployments.
     enable_google_login: bool = _get_bool_setting("ENABLE_GOOGLE_LOGIN", default=False)
+    # Password applied to all admin accounts during seed. Set in .env/secrets.toml.
+    admin_password: str = _get_setting("ADMIN_PASSWORD", "")
 
     def is_admin_email(self, email: str | None) -> bool:
         if not email:
@@ -242,6 +244,7 @@ def load_settings() -> Settings:
         database_url=_resolve_database_url(),
         admin_emails=_resolve_admin_emails(),
         enable_google_login=_get_bool_setting("ENABLE_GOOGLE_LOGIN", default=False),
+        admin_password=_get_setting("ADMIN_PASSWORD", ""),
     )
 
 

@@ -64,8 +64,19 @@ def seed() -> None:
         admin_role = roles["Administrator"]
         admin_emails = list(settings.admin_emails)
 
+        # Resolve admin password — must be set in ADMIN_PASSWORD env variable.
+        # Falls back to a random secret if unconfigured (unusable for local login).
+        admin_pw = settings.admin_password.strip() if settings.admin_password else ""
+        if not admin_pw:
+            print(
+                "Warning: ADMIN_PASSWORD is not set in .env/secrets.toml. "
+                "Admin accounts will have a random unknown password and cannot log in locally. "
+                "Add ADMIN_PASSWORD=<your-password> to env.dev or .env."
+            )
+            admin_pw = secrets.token_urlsafe(16)  # random fallback — account unusable without Google
+
         if not admin_emails:
-            print("Notice: No ADMIN_EMAILS configured in environment/secrets. Admins will be auto-detected on Google login once configured.")
+            print("Notice: No ADMIN_EMAILS configured. Add ADMIN_EMAILS to env.dev.")
         else:
             for email in admin_emails:
                 user = db.query(User).filter(User.email.ilike(email)).first()
@@ -74,18 +85,22 @@ def seed() -> None:
                         username=email,
                         full_name=f"Admin ({email.split('@')[0]})",
                         email=email.lower(),
-                        password_hash=hash_password(secrets.token_urlsafe(16)),
+                        password_hash=hash_password(admin_pw),
                         role=admin_role,
                         is_active=True,
                     )
                     db.add(user)
-                    print(f"Administrator account pre-provisioned: {email}")
+                    print(f"Administrator account provisioned: {email}")
                 else:
+                    # Always sync role, active state, AND password so re-running seed
+                    # applies any ADMIN_PASSWORD change from the env file.
                     user.role = admin_role
                     user.is_active = True
+                    user.password_hash = hash_password(admin_pw)
                     db.add(user)
-                    print(f"Administrator role ensured for existing user: {email}")
+                    print(f"Administrator account updated: {email}")
             db.commit()
+
 
 
 if __name__ == "__main__":

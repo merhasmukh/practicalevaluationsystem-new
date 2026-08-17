@@ -118,6 +118,18 @@ def _get_setting(key: str, default: str = "") -> str:
     return cleaned if cleaned != "" else default
 
 
+def _get_bool_setting(key: str, default: bool = True) -> bool:
+    """Get boolean setting from Streamlit secrets or environment.
+    Accepts: true/1/yes/on (case-insensitive) as True, everything else as False.
+    """
+    raw = _get_setting_raw(key)
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    return str(raw).strip().lower() in ("true", "1", "yes", "on")
+
+
 
 def _resolve_database_url() -> str:
     """Resolve database URL from explicit DATABASE_URL or discrete MySQL settings."""
@@ -212,6 +224,10 @@ class Settings:
     google_client_secret: str = _get_setting("GOOGLE_CLIENT_SECRET", "")
     google_redirect_uri: str = _get_setting("GOOGLE_REDIRECT_URI", "http://localhost:8501")
     google_hosted_domain: str = _get_setting("GOOGLE_HOSTED_DOMAIN", "")  # e.g. gujaratvidyapith.org
+    # Set ENABLE_GOOGLE_LOGIN=true in .env/secrets.toml to show Google OAuth sign-in
+    # (only for public deployments with a registered Google redirect URI).
+    # Defaults to False — hidden on private/local IP deployments.
+    enable_google_login: bool = _get_bool_setting("ENABLE_GOOGLE_LOGIN", default=False)
 
     def is_admin_email(self, email: str | None) -> bool:
         if not email:
@@ -225,6 +241,7 @@ def load_settings() -> Settings:
     return Settings(
         database_url=_resolve_database_url(),
         admin_emails=_resolve_admin_emails(),
+        enable_google_login=_get_bool_setting("ENABLE_GOOGLE_LOGIN", default=False),
     )
 
 

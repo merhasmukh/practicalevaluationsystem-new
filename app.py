@@ -80,8 +80,9 @@ with SessionLocal() as db:
             else:
                 st.query_params.clear()
 
-    # Handle Google OAuth callback if code or error is present in query parameters
-    if not st.session_state.get("user_id"):
+    # Handle Google OAuth callback — only active when enable_google_login is True.
+    # When running on a private/local IP this entire block is skipped.
+    if settings.enable_google_login and not st.session_state.get("user_id"):
         oauth_error_param = st.query_params.get("error")
         if oauth_error_param:
             err_desc = st.query_params.get("error_description") or oauth_error_param
@@ -138,12 +139,19 @@ with SessionLocal() as db:
                 st.query_params.clear()
                 st.rerun()
 
+
     if not st.session_state.get("user_id"):
-        if "google_pending_registration" in st.session_state:
+        # Google OAuth first-time student onboarding (only active when Google login is enabled)
+        if settings.enable_google_login and "google_pending_registration" in st.session_state:
             from ui.auth import render_student_onboarding
             render_student_onboarding(db, st.session_state["google_pending_registration"])
+        # Student self-registration page
+        elif st.session_state.get("show_register"):
+            from ui.auth import render_student_register
+            render_student_register(db)
         else:
             render_login()
+
     else:
         login_time_str = st.session_state.get("login_time")
         if login_time_str:

@@ -173,7 +173,9 @@ def _resolve_database_url() -> str:
         encoded_password = urllib.parse.quote_plus(password)
         return f"mysql+pymysql://{encoded_user}:{encoded_password}@{host}:{port}/{db_name}"
 
-    return "sqlite:///tpems.db"
+    # SQLite fallback — filename is configurable via DB_FILE env variable
+    db_file = _clean_str(_get_setting("DB_FILE", "")) or "tpems.db"
+    return f"sqlite:///{db_file}"
 
 
 

@@ -409,3 +409,84 @@ def test_student_bulk_import_simplified_format():
     assert student1.program_id == prog.id
     assert student1.program == "MCA"
     assert student1.semester == 3
+
+
+def test_late_submission_allowed_after_deadline():
+    """A first-time submission after the deadline is accepted and flagged is_late=True."""
+    db = setup_db()
+    world = seed_world(db)
+    # Create a practical whose deadline is already in the past
+    past_deadline = datetime.utcnow() - timedelta(days=2)
+    practical = Practical(
+        subject=world["subject"],
+        practical_number=10,
+        title="Late Test",
+        created_by=world["faculty"].id,
+        submission_days=7,
+    )
+    db.add(practical); db.commit()
+    assign_practical(db, practical, world["faculty"].id)
+
+    # Force the assignment deadline to the past
+    assignment = db.scalar(
+        select(Assignment).where(
+            Assignment.student_id == world["student"].id,
+            Assignment.practical_id == practical.id,
+        )
+    )
+    assignment.deadline = past_deadline
+    db.commit()
+
+    # Submission should succeed — no exception raised
+    sub = save_submission(
+        db, assignment.id,
+        "https://github.com/example/late-repo",
+        world["student"].user_id,
+    )
+    assert sub.is_late is True
+    db.refresh(assignment)
+    assert assignment.status == "Late"
+
+
+def test_late_resubmission_updates_url():
+    """Updating a submission after the deadline keeps is_late=True and updates the URL."""
+    db = setup_db()
+    world = seed_world(db)
+    practical = Practical(
+        subject=world["subject"],
+        practical_number=11,
+        title="Resubmit Late Test",
+        created_by=world["faculty"].id,
+        submission_days=7,
+    )
+    db.add(practical); db.commit()
+    assign_practical(db, practical, world["faculty"].id)
+
+    assignment = db.scalar(
+        select(Assignment).where(
+            Assignment.student_id == world["student"].id,
+            Assignment.practical_id == practical.id,
+        )
+    )
+
+    # First submit — on time
+    save_submission(
+        db, assignment.id,
+        "https://github.com/example/on-time",
+        world["student"].user_id,
+    )
+
+    # Move deadline to the past to simulate it passing
+    assignment.deadline = datetime.utcnow() - timedelta(days=1)
+    db.commit()
+
+    # Update submission after deadline — should succeed and mark late
+    sub = save_submission(
+        db, assignment.id,
+        "https://github.com/example/updated-late",
+        world["student"].user_id,
+    )
+    assert sub.github_url == "https://github.com/example/updated-late"
+    assert sub.is_late is True
+    db.refresh(assignment)
+    assert assignment.status == "Late"

@@ -348,8 +348,19 @@ def _evaluation_ui(db, user_id: int, subject_labels: dict[int, str]) -> None:
     _url_type = _github_url_type(submission.github_url)
     _btn_label = "📄 Open submitted file" if _url_type == "file" else "📂 Open GitHub repository"
     st.link_button(_btn_label, submission.github_url)
+
+    # Late submission notice — restrict grade options to B–F
+    if submission.is_late:
+        st.warning(
+            "⏰ **Late submission** — this practical was submitted after the deadline. "
+            "Grade **A** is not available for late submissions."
+        )
+        available_grades = [g for g in VALID_GRADES if g != "A"]
+    else:
+        available_grades = VALID_GRADES
+
     with st.form("evaluation_form"):
-        grade = st.selectbox("Grade", VALID_GRADES)
+        grade = st.selectbox("Grade", available_grades)
         remarks = st.text_area("Remarks")
         suggestions = st.text_area("Suggestions")
         if st.form_submit_button("Publish evaluation", type="primary"):

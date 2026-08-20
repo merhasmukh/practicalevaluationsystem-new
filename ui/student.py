@@ -56,7 +56,7 @@ def _render_submission_form(db, assignment: Assignment, student: Student) -> Non
 
         if st.form_submit_button("Submit", type="primary"):
             try:
-                save_submission(
+                submission = save_submission(
                     db,
                     assignment.id,
                     url,
@@ -64,7 +64,10 @@ def _render_submission_form(db, assignment: Assignment, student: Student) -> Non
                     branch=branch,
                     documentation=notes,
                 )
-                st.success("Submission recorded ✅")
+                if submission.is_late:
+                    st.warning("Late submission recorded ⚠️ Your submission was accepted but marked as late.")
+                else:
+                    st.success("Submission recorded ✅")
                 st.rerun()
             except ValueError as error:
                 st.error(str(error))
@@ -127,7 +130,11 @@ def _render_practical(db, assignment: Assignment, student: Student) -> None:
                 st.info("Submitted — awaiting evaluation.")
 
         elif is_overdue:
-            st.error("⛔ Deadline has passed. Submission is no longer possible.")
+            st.warning(
+                "⏰ **Deadline has passed.** You can still submit, but it will be "
+                "recorded as a **late submission** and may affect your evaluation."
+            )
+            _render_submission_form(db, assignment, student)
 
         else:
             _render_submission_form(db, assignment, student)

@@ -110,9 +110,8 @@ def save_submission(db: Session, assignment_id: int, github_url: str, actor_id: 
         db.add(submission)
     else:
         submission = assignment.submission
-        if utc_now() > assignment.deadline:
-            raise ValueError("The submission deadline has passed.")
         submission.github_url = github_url.strip()
+        submission.is_late = utc_now() > assignment.deadline  # recalculate on every update
         for key, value in fields.items():
             setattr(submission, key, value)
     assignment.status = "Late" if submission.is_late else "Submitted"

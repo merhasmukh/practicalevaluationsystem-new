@@ -232,6 +232,8 @@ class Settings:
     enable_google_login: bool = _get_bool_setting("ENABLE_GOOGLE_LOGIN", default=False)
     # Password applied to all admin accounts during seed. Set in .env/secrets.toml.
     admin_password: str = _get_setting("ADMIN_PASSWORD", "")
+    # Sarvam AI API Key for code evaluation
+    sarvam_api_key: str = _get_setting("SARVAM_API_KEY", "")
 
     def is_admin_email(self, email: str | None) -> bool:
         if not email:
@@ -247,6 +249,7 @@ def load_settings() -> Settings:
         admin_emails=_resolve_admin_emails(),
         enable_google_login=_get_bool_setting("ENABLE_GOOGLE_LOGIN", default=False),
         admin_password=_get_setting("ADMIN_PASSWORD", ""),
+        sarvam_api_key=_get_setting("SARVAM_API_KEY", ""),
     )
 
 

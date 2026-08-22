@@ -116,6 +116,66 @@ def dashboard(db, user: User, active_role: str | None = None, *args, **kwargs) -
         dashboard_view = "Existing system"
 
     if dashboard_view != "Interactive analytics":
+        if effective_role == "Faculty":
+            st.subheader("Subject analytics overview")
+            from models.schema import Practical
+            from services.core_services import faculty_subject_ids
+            
+            subject_ids = faculty_subject_ids(db, user.id)
+            if subject_ids:
+                faculty_assignments = db.scalars(
+                    select(Assignment).join(Assignment.practical).where(Practical.subject_id.in_(subject_ids))
+                ).all()
+                
+                subject_stats = {}
+                for a in faculty_assignments:
+                    subj_label = f"{a.practical.subject.code} - {a.practical.subject.name}"
+                    if subj_label not in subject_stats:
+                        subject_stats[subj_label] = {"Graded": 0, "Pending Evaluation": 0, "Pending Submission": 0}
+                    
+                    if a.submission:
+                        if a.submission.evaluation and a.submission.evaluation.published:
+                            subject_stats[subj_label]["Graded"] += 1
+                        else:
+                            subject_stats[subj_label]["Pending Evaluation"] += 1
+                    else:
+                        subject_stats[subj_label]["Pending Submission"] += 1
+                        
+                if subject_stats:
+                    subj_choices = ["All Subjects"] + list(subject_stats.keys())
+                    selected_subj = st.selectbox("Filter Analytics by Subject", subj_choices)
+                    
+                    if selected_subj == "All Subjects":
+                        agg_graded = sum(s["Graded"] for s in subject_stats.values())
+                        agg_pending_eval = sum(s["Pending Evaluation"] for s in subject_stats.values())
+                        agg_pending_sub = sum(s["Pending Submission"] for s in subject_stats.values())
+                        
+                        table_df = pd.DataFrame.from_dict(subject_stats, orient="index").reset_index()
+                        table_df.rename(columns={"index": "Subject"}, inplace=True)
+                    else:
+                        agg_graded = subject_stats[selected_subj]["Graded"]
+                        agg_pending_eval = subject_stats[selected_subj]["Pending Evaluation"]
+                        agg_pending_sub = subject_stats[selected_subj]["Pending Submission"]
+                        
+                        table_df = pd.DataFrame([{
+                            "Subject": selected_subj, 
+                            "Graded": agg_graded, 
+                            "Pending Evaluation": agg_pending_eval, 
+                            "Pending Submission": agg_pending_sub
+                        }])
+                        
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        card("Graded", agg_graded)
+                    with c2:
+                        card("Pending Evaluation", agg_pending_eval)
+                    with c3:
+                        card("Pending Submission", agg_pending_sub)
+                        
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.dataframe(table_df, hide_index=True, use_container_width=True)
+            st.divider()
+            
         st.subheader("Search and filter practicals")
         search_term = st.text_input("Search by name, enrollment, subject, or status", placeholder="Type to filter instantly")
         status_filter = st.selectbox("Status", ["All", "Assigned", "Submitted", "Late", "Evaluated"], index=0)

@@ -345,6 +345,23 @@ def _evaluation_ui(db, user_id: int, subject_labels: dict[int, str]) -> None:
     }
     selected = st.selectbox("Submission to evaluate", list(submission_choices), format_func=lambda value: submission_choices[value], key="evaluate_submission_select")
     submission = db.get(Submission, selected)
+    
+    # Display Practical Context
+    pract = submission.assignment.practical
+    student = submission.assignment.student
+    
+    st.markdown("---")
+    st.subheader(f"P{pract.practical_number}: {pract.title}")
+    
+    col_a, col_b = st.columns(2)
+    col_a.write(f"**Student:** {student.user.full_name} ({student.enrollment_no})")
+    col_b.write(f"**Deadline:** {submission.assignment.deadline.strftime('%d %b %Y, %I:%M %p')}")
+
+    if pract.description:
+        st.info(f"**Description:**\n\n{pract.description}")
+        
+    st.markdown("---")
+
     _url_type = _github_url_type(submission.github_url)
     _btn_label = "📄 Open submitted file" if _url_type == "file" else "📂 Open GitHub repository"
     st.link_button(_btn_label, submission.github_url)
@@ -359,11 +376,51 @@ def _evaluation_ui(db, user_id: int, subject_labels: dict[int, str]) -> None:
     else:
         available_grades = VALID_GRADES
 
+    ai_key_remarks = f"ai_remarks_{submission.id}"
+    ai_key_suggestions = f"ai_suggestions_{submission.id}"
+    ai_key_questions = f"ai_questions_{submission.id}"
+
+    if st.button("🤖 Analyze Code with AI", help="Uses Sarvam AI to review the code and suggest remarks."):
+        with st.spinner("Fetching code and analyzing with Sarvam AI..."):
+            try:
+                from services.ai_service import fetch_github_code, analyze_code_with_sarvam
+                code_content = fetch_github_code(submission.github_url)
+                practical_obj = submission.assignment.practical
+                ai_result = analyze_code_with_sarvam(
+                    practical_title=practical_obj.title,
+                    practical_desc=practical_obj.description or "No description provided.",
+                    code_content=code_content
+                )
+                st.session_state[ai_key_remarks] = ai_result.get("remarks", "")
+                st.session_state[ai_key_suggestions] = ai_result.get("suggestions", "")
+                st.session_state[ai_key_questions] = ai_result.get("viva_questions", [])
+                st.rerun()  # Rerun to populate the text areas in the form below
+            except Exception as e:
+                st.error(str(e))
+
+    # Display Viva questions if generated
+    viva_questions = st.session_state.get(ai_key_questions, [])
+    if viva_questions:
+        with st.expander("🎓 Suggested Viva Questions", expanded=True):
+            st.caption("Ask these questions to gauge the student's understanding of their submitted code.")
+            for idx, q in enumerate(viva_questions, 1):
+                st.markdown(f"**Q{idx}:** {q}")
+
     with st.form("evaluation_form"):
         grade = st.selectbox("Grade", available_grades)
-        remarks = st.text_area("Remarks")
-        suggestions = st.text_area("Suggestions")
+        
+        # If there's an existing evaluation in the database, we use that as fallback if session state is empty
+        default_remarks = submission.evaluation.remarks if submission.evaluation else ""
+        default_suggestions = submission.evaluation.suggestions if submission.evaluation else ""
+        
+        remarks = st.text_area("Remarks", value=st.session_state.get(ai_key_remarks, default_remarks))
+        suggestions = st.text_area("Suggestions", value=st.session_state.get(ai_key_suggestions, default_suggestions))
+        
         if st.form_submit_button("Publish evaluation", type="primary"):
             grade_submission(db, submission.id, user_id, grade, remarks, suggestions)
             st.success("Evaluation published.")
+            # Clear AI results from session state on successful publish
+            st.session_state.pop(ai_key_remarks, None)
+            st.session_state.pop(ai_key_suggestions, None)
+            st.session_state.pop(ai_key_questions, None)
             st.rerun()

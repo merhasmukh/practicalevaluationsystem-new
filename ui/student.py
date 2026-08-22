@@ -36,10 +36,11 @@ def _difficulty_badge(difficulty: str) -> str:
 
 # ── submission form ───────────────────────────────────────────────────────────
 
-def _render_submission_form(db, assignment: Assignment, student: Student) -> None:
+def _render_submission_form(db, assignment: Assignment, student: Student, default_url: str = "", default_branch: str = "main", default_notes: str = "") -> None:
     with st.form(f"submit-{assignment.id}"):
         url = st.text_input(
             "GitHub URL",
+            value=default_url,
             placeholder=(
                 "https://github.com/username/repo  OR  "
                 "https://github.com/username/repo/blob/main/Solution.java"
@@ -51,8 +52,8 @@ def _render_submission_form(db, assignment: Assignment, student: Student) -> Non
                 "Supported file types: `.java`, `.py`, `.js`, `.html`, `.css`, `.cpp`, `.c`, `.ts`, and more."
             ),
         )
-        branch = st.text_input("Branch", "main")
-        notes = st.text_area("Documentation / remarks")
+        branch = st.text_input("Branch", value=default_branch)
+        notes = st.text_area("Documentation / remarks", value=default_notes)
 
         if st.form_submit_button("Submit", type="primary"):
             try:
@@ -91,9 +92,7 @@ def _render_practical(db, assignment: Assignment, student: Student) -> None:
             st.caption(f"📅 Deadline: {assignment.deadline:%d %b %Y, %I:%M %p}")
         with cols[1]:
             st.caption(_difficulty_badge(practical.difficulty))
-        with cols[2]:
-            st.caption(f"🏆 Max marks: {practical.max_marks}")
-
+            
         if practical.description:
             st.write(practical.description)
         if practical.learning_outcome:
@@ -128,6 +127,21 @@ def _render_practical(db, assignment: Assignment, student: Student) -> None:
                 st.info("Evaluation in progress — not published yet.")
             else:
                 st.info("Submitted — awaiting evaluation.")
+                
+                # Allow edit if before deadline
+                if _utc_now() <= assignment.deadline:
+                    with st.expander("✏️ Edit Submission", expanded=False):
+                        st.caption("You can update your submission link before the deadline.")
+                        _render_submission_form(
+                            db, 
+                            assignment, 
+                            student, 
+                            default_url=sub.github_url, 
+                            default_branch=sub.branch, 
+                            default_notes=sub.documentation
+                        )
+                else:
+                    st.caption("🔒 The deadline has passed. You can no longer edit this submission.")
 
         elif is_overdue:
             st.warning(

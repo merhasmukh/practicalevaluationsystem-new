@@ -28,10 +28,10 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 
 def run_migrations() -> None:
-    """Run all pending Alembic migrations up to head.
+    """Run all pending Alembic migrations up to head, then ensure table guards.
 
-    This is the production-grade schema upgrade path.
-    Falls back silently to init_db() if Alembic is unavailable.
+    This is the production-grade schema upgrade path. Automatically runs
+    on startup without requiring manual CLI commands.
     """
     try:
         import os
@@ -54,7 +54,9 @@ def run_migrations() -> None:
                 from alembic import command
                 command.upgrade(alembic_cfg, "head")
     except Exception:
-        # Alembic not configured or migrations dir missing — fall back to create_all
+        pass
+    finally:
+        # Guarantee that all tables and safe column additions are present
         init_db()
 
 

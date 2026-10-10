@@ -117,22 +117,14 @@ def init_db() -> None:
 
         if inspect(engine).has_table("subject_header_configs"):
             cfg_columns = {column["name"] for column in inspect(engine).get_columns("subject_header_configs")}
-            if "institution_name" not in cfg_columns:
-                connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN institution_name VARCHAR(200) DEFAULT 'Gujarat Vidyapith'"))
-            if "department_name" not in cfg_columns:
-                connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN department_name VARCHAR(200) DEFAULT 'Department of Computer Science'"))
-            if "course_name" not in cfg_columns:
-                connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN course_name VARCHAR(150) DEFAULT ''"))
-            if "academic_year" not in cfg_columns:
-                connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN academic_year VARCHAR(50) DEFAULT '2026-27'"))
-            if "subject_teacher" not in cfg_columns:
-                connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN subject_teacher VARCHAR(150) DEFAULT ''"))
-            if "subject_title" not in cfg_columns:
-                connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN subject_title VARCHAR(300) DEFAULT ''"))
-            if "signature_image_path" not in cfg_columns:
-                connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN signature_image_path VARCHAR(255)"))
-            if "updated_at" not in cfg_columns:
-                connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+            # If created by the previous migration draft with conflicting NOT NULL column `program_name`:
+            if "program_name" in cfg_columns or "institution_name" not in cfg_columns:
+                connection.execute(text("DROP TABLE subject_header_configs"))
+                # Re-create cleanly from metadata (only touches subject_header_configs)
+                Base.metadata.tables["subject_header_configs"].create(connection)
+            else:
+                if "signature_image_path" not in cfg_columns:
+                    connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN signature_image_path VARCHAR(255)"))
 
 
 def get_db() -> Generator:

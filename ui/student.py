@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload
 
 from models.schema import Assignment, Practical, Student, Subject, Submission
 from services.core_services import _github_url_type, save_submission
+from services.pdf_service import generate_practical_list_pdf
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -217,13 +218,29 @@ def student_page(db, student: Student) -> None:
         )
         s_pending   = s_total - s_submitted
 
-        # Section header
+        # Section header with PDF download button aligned to the right
         sem_label = f"Sem {subj.semester}" if subj.semester else ""
         prog_label = subj.program.code if subj.program else ""
         meta_parts = [p for p in [prog_label, sem_label] if p]
         meta_str   = f"  ·  {' · '.join(meta_parts)}" if meta_parts else ""
 
-        st.subheader(f"📘 {subj.code} — {subj.name}{meta_str}")
+        header_col, pdf_col = st.columns([5, 1])
+        with header_col:
+            st.subheader(f"📘 {subj.code} — {subj.name}{meta_str}")
+        with pdf_col:
+            pdf_key = f"pdf_student_{student.id}_subj_{sid}"
+            try:
+                pdf_buf = generate_practical_list_pdf(db, subject_id=sid, student_id=student.id)
+                st.download_button(
+                    label="📥 Download PDF",
+                    data=pdf_buf,
+                    file_name=f"Practical_List_{subj.code}_{student.enrollment_no}.pdf",
+                    mime="application/pdf",
+                    key=pdf_key,
+                    help=f"Download your practical list for {subj.name} as a PDF",
+                )
+            except Exception as _pdf_err:
+                st.caption(f"PDF unavailable: {_pdf_err}")
 
         # Subject-level progress bar
         progress = s_submitted / s_total if s_total else 0

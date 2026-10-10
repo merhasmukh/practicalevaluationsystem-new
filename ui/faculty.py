@@ -10,13 +10,17 @@ from services.core_services import (
     create_practical,
     delete_practical,
     faculty_practicals,
+    get_or_create_subject_header_config,
+    get_student_subject_progress,
     grade_submission,
     import_practicals_from_dataframe,
     subjects_for_faculty,
     submissions_for_faculty,
     update_practical,
+    update_subject_header_config,
     validate_practical_import,
 )
+from services.pdf_service import generate_blank_master_pdf, generate_practical_list_pdf
 from core.rbac import has_permission
 
 VALID_GRADES = ["A", "B", "C", "D", "E", "F"]
@@ -52,13 +56,23 @@ def faculty_page(db, user) -> None:
         with column:
             st.metric(label, value)
 
-    tab_create, tab_assign, tab_grade = st.tabs(["Create / manage practicals", "Assign to students", "Evaluate"])
+    tab_create, tab_assign, tab_grade, tab_pdf, tab_reports = st.tabs([
+        "Create / manage practicals",
+        "Assign to students",
+        "Evaluate",
+        "📄 PDF Header Settings",
+        "📈 Student Progress & Reports",
+    ])
     with tab_create:
         _practical_management(db, user.id, subject_labels)
     with tab_assign:
         _assignment_ui(db, user.id, subject_labels)
     with tab_grade:
         _evaluation_ui(db, user.id, subject_labels)
+    with tab_pdf:
+        _pdf_header_settings_ui(db, user, subject_labels)
+    with tab_reports:
+        _student_reports_ui(db, user.id, subject_labels)
 
 
 def _bulk_practical_import(db, user_id: int) -> None:
@@ -131,11 +145,17 @@ def _practical_management(db, user_id: int, subject_labels: dict[int, str]) -> N
         learning_outcome = st.text_area("Learning outcome")
         difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], index=1)
         submission_date = st.date_input("Submission date (optional)", value=None, min_value=date.today())
+        # PDF-specific optional fields
+        with st.expander("🗒️ PDF display fields (optional)", expanded=False):
+            st.caption("These fields control how the practical appears in generated PDFs.")
+            unit_name = st.text_input("Unit name", placeholder="e.g. Unit-1 & Unit-2", help="Unit grouping banner shown in the PDF.")
+            practical_code = st.text_input("Practical code", placeholder="e.g. U1-P1", help="Shown in 'Practical No.' column. Defaults to P1, P2, ...")
+            assigned_date = st.date_input("Assigned date (for PDF)", value=None, help="The assigned / start date to show in the PDF.")
         if st.form_submit_button("Create practical"):
             if not title.strip():
                 st.error("Enter a practical title.")
             else:
-                create_practical(
+                p = create_practical(
                     db,
                     subject_id=subject.id,
                     title=title,
@@ -146,6 +166,14 @@ def _practical_management(db, user_id: int, subject_labels: dict[int, str]) -> N
                     submission_date=submission_date,
                     creator_id=user_id,
                 )
+                # Apply optional PDF fields
+                if unit_name.strip() or practical_code.strip() or assigned_date:
+                    update_practical(
+                        db, p.id, user_id,
+                        unit_name=unit_name.strip() or None,
+                        practical_code=practical_code.strip() or None,
+                        assigned_date=assigned_date or None,
+                    )
                 st.success(f"Practical created for {subject.code}.")
                 st.rerun()
 
@@ -172,6 +200,13 @@ def _practical_management(db, user_id: int, subject_labels: dict[int, str]) -> N
                 st.caption(f"Submission date is fixed at {selected.submission_date:%d %b %Y} to keep assigned deadlines immutable.")
             else:
                 st.caption("Submission date is not set; no deadline will be enforced.")
+
+            with st.expander("🗒️ PDF display fields (optional)", expanded=False):
+                st.caption("These fields only affect how the practical appears in generated PDFs.")
+                edited_unit_name = st.text_input("Unit name", value=selected.unit_name or "", placeholder="e.g. Unit-1 & Unit-2")
+                edited_pract_code = st.text_input("Practical code", value=selected.practical_code or "", placeholder="e.g. U1-P1")
+                edited_assigned_date = st.date_input("Assigned date (for PDF)", value=selected.assigned_date or None)
+
             if st.form_submit_button("Save practical changes"):
                 update_practical(
                     db,
@@ -181,6 +216,9 @@ def _practical_management(db, user_id: int, subject_labels: dict[int, str]) -> N
                     description=edited_description,
                     learning_outcome=edited_outcome,
                     difficulty=edited_difficulty,
+                    unit_name=edited_unit_name.strip() or None,
+                    practical_code=edited_pract_code.strip() or None,
+                    assigned_date=edited_assigned_date or None,
                 )
                 st.success("Practical updated.")
                 st.rerun()
@@ -424,3 +462,257 @@ def _evaluation_ui(db, user_id: int, subject_labels: dict[int, str]) -> None:
             st.session_state.pop(ai_key_suggestions, None)
             st.session_state.pop(ai_key_questions, None)
             st.rerun()
+
+
+# ── PDF Header Settings ───────────────────────────────────────────────────────
+
+def _pdf_header_settings_ui(db, user, subject_labels: dict[int, str]) -> None:
+    st.subheader("PDF header configuration")
+    st.caption(
+        "Configure the institutional header printed at the top of every practical-list PDF for each subject. "
+        "Changes take effect immediately the next time any PDF is generated."
+    )
+
+    subjects = list(db.scalars(select(Subject).where(Subject.id.in_(subject_labels.keys())).order_by(Subject.code)))
+    if not subjects:
+        st.info("No subjects assigned.")
+        return
+
+    selected_subj = st.selectbox(
+        "Subject",
+        subjects,
+        format_func=lambda s: f"{s.code} · {s.name}",
+        key="pdf_hdr_subj_select",
+    )
+
+    # Load (or auto-create) config
+    cfg = get_or_create_subject_header_config(db, selected_subj.id, faculty_user=user)
+
+    with st.form("pdf_header_form"):
+        st.caption("All fields are pre-filled with sensible defaults; update as needed.")
+        inst_name   = st.text_input("Institution name",  value=cfg.institution_name)
+        dept_name   = st.text_input("Department name",   value=cfg.department_name)
+        course_name = st.text_input("Course / programme name", value=cfg.course_name,
+                                    placeholder="e.g. MCA Semester-I")
+        acad_year   = st.text_input("Academic year",     value=cfg.academic_year,
+                                    placeholder="e.g. 2026-27")
+        teacher     = st.text_input("Subject teacher",   value=cfg.subject_teacher,
+                                    placeholder="e.g. Shri Hasmukh Mer")
+        subj_title  = st.text_area("Subject display title", value=cfg.subject_title,
+                                   placeholder="e.g. Lab based on Python Ecosystem for AI Applications",
+                                   height=80)
+
+        save_col, preview_col = st.columns([1, 1])
+        save_clicked = save_col.form_submit_button("💾 Save header configuration", type="primary")
+        if save_clicked:
+            update_subject_header_config(
+                db,
+                selected_subj.id,
+                faculty_user=user,
+                institution_name=inst_name.strip(),
+                department_name=dept_name.strip(),
+                course_name=course_name.strip(),
+                academic_year=acad_year.strip(),
+                subject_teacher=teacher.strip(),
+                subject_title=subj_title.strip(),
+            )
+            st.success("Header configuration saved successfully.")
+            st.rerun()
+
+    # ── Faculty Digital Signature (Hybrid) ────────────────────────────────────
+    st.markdown("---")
+    st.subheader("Faculty digital signature (Optional)")
+    st.caption(
+        "Upload a clear image of your signature (PNG or JPG). When student practical-list PDFs are generated, "
+        "this signature image and the exact evaluation date will appear in the 'Sign' column. "
+        "If no image is uploaded, the system will print the faculty name/initials with the grading date. "
+        "The sign area remains completely blank until evaluated."
+    )
+
+    import os
+    from services.core_services import remove_signature_image, save_signature_image
+
+    current_sig = cfg.signature_image_path or getattr(user, "signature_image_path", None)
+
+    sig_col1, sig_col2 = st.columns([1, 1])
+    if current_sig and os.path.isfile(current_sig):
+        with sig_col1:
+            st.markdown("**Current active signature:**")
+            st.image(current_sig, caption="Uploaded Signature Preview", width=180)
+            if st.button("🗑️ Remove signature", key=f"remove_sig_{selected_subj.id}"):
+                remove_signature_image(current_sig)
+                cfg.signature_image_path = None
+                if hasattr(user, "signature_image_path"):
+                    user.signature_image_path = None
+                db.commit()
+                st.success("Signature removed. Fallback digital text signature will be used.")
+                st.rerun()
+
+    with sig_col2:
+        new_sig = st.file_uploader(
+            "Upload new signature image (PNG / JPG)",
+            type=["png", "jpg", "jpeg", "webp"],
+            key=f"upload_sig_{selected_subj.id}",
+            help="For best results, use a cropped PNG with a white or transparent background.",
+        )
+        if new_sig is not None:
+            if st.button("💾 Save signature", key=f"save_sig_{selected_subj.id}", type="primary"):
+                saved_path = save_signature_image(new_sig.getvalue(), new_sig.name, "subject", selected_subj.id)
+                update_subject_header_config(db, selected_subj.id, faculty_user=user, signature_image_path=saved_path)
+                if hasattr(user, "signature_image_path"):
+                    user.signature_image_path = saved_path
+                db.commit()
+                st.success("Signature saved! It will now appear on all evaluated practical lists.")
+                st.rerun()
+
+    st.markdown("---")
+    st.markdown("**Download blank master practical list for this subject:**")
+    st.caption("Prints the header and full practical table with blank date/grade/sign/remarks columns for classroom distribution.")
+    try:
+        practicals_exist = db.scalar(
+            select(Practical).where(Practical.subject_id == selected_subj.id)
+        )
+        if practicals_exist:
+            master_buf = generate_blank_master_pdf(db, selected_subj.id)
+            st.download_button(
+                label="📄 Download Master Practical List (Blank)",
+                data=master_buf,
+                file_name=f"Master_Practical_List_{selected_subj.code}.pdf",
+                mime="application/pdf",
+                key=f"master_pdf_{selected_subj.id}",
+            )
+        else:
+            st.info("No practicals exist for this subject yet. Create practicals first in the 'Create / manage practicals' tab.")
+    except Exception as _err:
+        st.error(f"Could not generate PDF: {_err}")
+
+
+# ── Student Progress & Reports ────────────────────────────────────────────────
+
+def _student_reports_ui(db, user_id: int, subject_labels: dict[int, str]) -> None:
+    st.subheader("Student progress & reports")
+    st.caption("Track student completion per subject and download personalized practical-list PDFs.")
+
+    subjects = list(db.scalars(select(Subject).where(Subject.id.in_(subject_labels.keys())).order_by(Subject.code)))
+    if not subjects:
+        st.info("No subjects assigned.")
+        return
+
+    rpt_subj = st.selectbox(
+        "Select subject",
+        subjects,
+        format_func=lambda s: f"{s.code} · {s.name}",
+        key="rpt_subj_select",
+    )
+
+    progress_rows = get_student_subject_progress(db, rpt_subj.id)
+
+    if not progress_rows:
+        st.info("No students have been assigned practicals in this subject yet.")
+        return
+
+    # ── Overview metrics ──────────────────────────────────────────────────────
+    total_students  = len(progress_rows)
+    fully_submitted = sum(1 for r in progress_rows if r["submitted"] == r["total"])
+    fully_graded    = sum(1 for r in progress_rows if r["graded"] == r["total"])
+    total_prac      = progress_rows[0]["total"] if progress_rows else 0
+
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.metric("Students", total_students)
+    mc2.metric("Total practicals", total_prac)
+    mc3.metric("Fully submitted", fully_submitted)
+    mc4.metric("Fully graded", fully_graded)
+
+    st.markdown("---")
+
+    # ── Student roster table with inline PDF download ─────────────────────────
+    st.markdown("**Student roster**")
+
+    for row in sorted(progress_rows, key=lambda r: r["enrollment_no"]):
+        sid       = row["student_id"]
+        enr       = row["enrollment_no"]
+        name      = row["full_name"]
+        submitted = row["submitted"]
+        graded    = row["graded"]
+        total     = row["total"]
+        pct       = row["completion_pct"]
+
+        col_info, col_bar, col_btn = st.columns([3, 4, 2])
+
+        with col_info:
+            st.markdown(f"**{enr}** — {name}")
+            st.caption(f"Submitted: {submitted}/{total} · Graded: {graded}/{total}")
+
+        with col_bar:
+            st.progress(pct / 100, text=f"{pct}% submitted")
+
+        with col_btn:
+            pdf_key = f"fac_pdf_{sid}_{rpt_subj.id}"
+            try:
+                pdf_buf = generate_practical_list_pdf(db, subject_id=rpt_subj.id, student_id=sid)
+                st.download_button(
+                    label="📥 PDF",
+                    data=pdf_buf,
+                    file_name=f"Practical_List_{rpt_subj.code}_{enr}.pdf",
+                    mime="application/pdf",
+                    key=pdf_key,
+                    help=f"Download practical list PDF for {name}",
+                )
+            except Exception as _e:
+                st.caption(f"Error: {_e}")
+
+        st.divider()
+
+    # ── Individual student detail drill-down ─────────────────────────────────
+    st.markdown("---")
+    st.markdown("**Inspect an individual student's progress**")
+
+    student_choices = {r["student_id"]: f"{r['enrollment_no']} · {r['full_name']}" for r in progress_rows}
+    drill_sid = st.selectbox(
+        "Select student",
+        list(student_choices),
+        format_func=student_choices.get,
+        key="rpt_drill_student",
+    )
+
+    if drill_sid:
+        from models.schema import Assignment, Practical, Submission
+        from sqlalchemy.orm import joinedload
+
+        prac_ids_subj = [
+            p.id for p in db.scalars(select(Practical).where(Practical.subject_id == rpt_subj.id))
+        ]
+        student_assignments = list(db.scalars(
+            select(Assignment)
+            .where(Assignment.student_id == drill_sid, Assignment.practical_id.in_(prac_ids_subj))
+            .options(
+                joinedload(Assignment.practical),
+                joinedload(Assignment.submission).joinedload(Submission.evaluation),
+            )
+            .order_by(Assignment.id)
+        ))
+
+        if not student_assignments:
+            st.info("This student has no assignments for this subject yet.")
+        else:
+            for a in student_assignments:
+                prac = a.practical
+                sub  = a.submission
+                ev   = sub.evaluation if sub else None
+
+                status_icon = (
+                    "✅" if (ev and ev.published) else
+                    "🟡" if sub else
+                    "🔵"
+                )
+                grade_str   = ev.grade if (ev and ev.published) else "—"
+                remarks_str = ev.remarks if (ev and ev.published) else "—"
+
+                pcode = prac.practical_code or f"P{prac.practical_number}"
+                with st.container(border=True):
+                    c1, c2, c3, c4 = st.columns([2, 4, 2, 2])
+                    c1.markdown(f"**{pcode}**")
+                    c2.markdown(prac.title)
+                    c3.markdown(f"{status_icon} Grade: **{grade_str}**")
+                    c4.markdown(f"Remarks: {remarks_str[:60] + '…' if len(remarks_str) > 60 else remarks_str}")
+

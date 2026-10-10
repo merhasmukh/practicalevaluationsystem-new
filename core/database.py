@@ -97,6 +97,27 @@ def init_db() -> None:
             if "program_id" not in subject_columns:
                 connection.execute(text("ALTER TABLE subjects ADD COLUMN program_id INTEGER REFERENCES programs(id)"))
 
+        # PDF display fields on practicals (nullable, non-breaking)
+        if inspect(engine).has_table("practicals"):
+            practical_columns = {column["name"] for column in inspect(engine).get_columns("practicals")}
+            if "unit_name" not in practical_columns:
+                connection.execute(text("ALTER TABLE practicals ADD COLUMN unit_name VARCHAR(100)"))
+            if "practical_code" not in practical_columns:
+                connection.execute(text("ALTER TABLE practicals ADD COLUMN practical_code VARCHAR(30)"))
+            if "assigned_date" not in practical_columns:
+                connection.execute(text("ALTER TABLE practicals ADD COLUMN assigned_date DATE"))
+
+        # Signature image fields on users and subject_header_configs (nullable)
+        if inspect(engine).has_table("users"):
+            user_columns = {column["name"] for column in inspect(engine).get_columns("users")}
+            if "signature_image_path" not in user_columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN signature_image_path VARCHAR(255)"))
+
+        if inspect(engine).has_table("subject_header_configs"):
+            cfg_columns = {column["name"] for column in inspect(engine).get_columns("subject_header_configs")}
+            if "signature_image_path" not in cfg_columns:
+                connection.execute(text("ALTER TABLE subject_header_configs ADD COLUMN signature_image_path VARCHAR(255)"))
+
 
 def get_db() -> Generator:
     session = SessionLocal()

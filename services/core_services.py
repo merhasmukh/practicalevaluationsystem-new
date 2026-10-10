@@ -25,6 +25,7 @@ from models.schema import (
     Role,
     Student,
     Subject,
+    SubjectHeaderConfig,
     Submission,
     User,
 )
@@ -136,6 +137,7 @@ def grade_submission(db: Session, submission_id: int, evaluator_id: int, grade: 
     evaluation.remarks = remarks
     evaluation.suggestions = suggestions
     evaluation.published = True
+    evaluation.evaluated_at = utc_now()
     submission.assignment.status = "Evaluated"
     audit(db, evaluator_id, "PUBLISH_EVALUATION", "Submission", submission.id, grade)
     db.commit()
@@ -721,7 +723,9 @@ def update_practical(db: Session, practical_id: int, actor_id: int, **fields) ->
     if not practical:
         raise ValueError("Practical not found.")
     # Submission date is intentionally immutable after creation once assignments exist.
-    for key in ("title", "description", "learning_outcome", "difficulty", "max_marks"):
+    # PDF display fields (unit_name, practical_code, assigned_date) are always mutable.
+    for key in ("title", "description", "learning_outcome", "difficulty", "max_marks",
+                "unit_name", "practical_code", "assigned_date"):
         if key in fields:
             setattr(practical, key, fields[key])
     if "grade" in fields:
@@ -1131,3 +1135,177 @@ def faculty_practicals(db: Session, faculty_id: int, subject_id: int | None = No
     if subject_id:
         statement = statement.where(Practical.subject_id == subject_id)
     return list(db.scalars(statement))
+
+
+# ── Subject Header Config helpers ─────────────────────────────────────────────
+
+def get_or_create_subject_header_config(
+    db: Session,
+    subject_id: int,
+    faculty_user=None,
+) -> SubjectHeaderConfig:
+    """Return the header config for a subject, creating a default one if absent.
+
+    When creating a new config, pre-fills ``subject_teacher`` from *faculty_user*
+    and ``course_name`` / ``subject_title`` from the Subject relationship data.
+    """
+    cfg = db.scalar(select(SubjectHeaderConfig).where(SubjectHeaderConfig.subject_id == subject_id))
+    if cfg:
+        return cfg
+
+    subject: Subject | None = db.get(Subject, subject_id)
+    if not subject:
+        raise ValueError(f"Subject id={subject_id} not found.")
+
+    teacher_name = faculty_user.full_name if faculty_user else ""
+    dept_name = subject.department.name if subject.department else "Department of Computer Science"
+    prog_code = subject.program.code if subject.program else ""
+    course_name = f"{prog_code} Semester-{subject.semester}" if prog_code else f"Semester-{subject.semester}"
+
+    cfg = SubjectHeaderConfig(
+        subject_id=subject_id,
+        institution_name="Gujarat Vidyapith",
+        department_name=dept_name,
+        course_name=course_name,
+        academic_year="2026-27",
+        subject_teacher=teacher_name,
+        subject_title=subject.name,
+    )
+    db.add(cfg)
+    db.commit()
+    db.refresh(cfg)
+    return cfg
+
+
+def update_subject_header_config(
+    db: Session,
+    subject_id: int,
+    faculty_user=None,
+    **fields,
+) -> SubjectHeaderConfig:
+    """Update (or create) the header config for a subject.
+
+    Accepted keyword fields: ``institution_name``, ``department_name``,
+    ``course_name``, ``academic_year``, ``subject_teacher``, ``subject_title``.
+    """
+    cfg = get_or_create_subject_header_config(db, subject_id, faculty_user=faculty_user)
+    allowed = {
+        "institution_name", "department_name", "course_name",
+        "academic_year", "subject_teacher", "subject_title",
+        "signature_image_path",
+    }
+    for key, value in fields.items():
+        if key in allowed:
+            setattr(cfg, key, value)
+    db.commit()
+    db.refresh(cfg)
+    return cfg
+
+
+def get_student_subject_progress(
+    db: Session,
+    subject_id: int,
+    student_id: int | None = None,
+) -> list[dict]:
+    """Return per-student progress rows for a subject.
+
+    Each dict contains:
+    ``student_id``, ``enrollment_no``, ``full_name``,
+    ``total``, ``submitted``, ``graded``, ``pending``, ``completion_pct``.
+
+    If *student_id* is given, returns a single-element list for that student.
+    """
+    # Fetch all practicals for the subject
+    practicals = list(
+        db.scalars(select(Practical).where(Practical.subject_id == subject_id))
+    )
+    total = len(practicals)
+    if total == 0:
+        return []
+
+    # Fetch enrolled students via assignments (students who have at least one assignment
+    # for a practical in this subject) — this is how the system currently works.
+    subq = (
+        select(Assignment.student_id)
+        .join(Practical, Practical.id == Assignment.practical_id)
+        .where(Practical.subject_id == subject_id)
+        .distinct()
+    )
+    if student_id:
+        subq = subq.where(Assignment.student_id == student_id)
+
+    student_ids = list(db.scalars(subq))
+    if not student_ids:
+        return []
+
+    prac_ids = [p.id for p in practicals]
+
+    result = []
+    for sid in student_ids:
+        stu: Student | None = db.get(Student, sid)
+        if not stu:
+            continue
+
+        # Assignments for this student in this subject
+        asgns = list(
+            db.scalars(
+                select(Assignment)
+                .where(Assignment.student_id == sid, Assignment.practical_id.in_(prac_ids))
+                .options(joinedload(Assignment.submission).joinedload(Submission.evaluation))
+            )
+        )
+        submitted = sum(1 for a in asgns if a.submission)
+        graded = sum(
+            1 for a in asgns
+            if a.submission and a.submission.evaluation and a.submission.evaluation.published
+        )
+        pending = total - submitted
+        pct = round((submitted / total) * 100) if total else 0
+
+        result.append(
+            {
+                "student_id":     sid,
+                "enrollment_no":  stu.enrollment_no,
+                "full_name":      stu.user.full_name if stu.user else "-",
+                "total":          total,
+                "submitted":      submitted,
+                "graded":         graded,
+                "pending":        pending,
+                "completion_pct": pct,
+            }
+        )
+    return result
+
+
+def save_signature_image(file_bytes: bytes, filename: str, entity_type: str, entity_id: int) -> str:
+    """Save an uploaded signature image to assets/signatures/ and return the relative path.
+
+    entity_type: 'faculty' or 'subject'
+    entity_id: user_id or subject_id
+    """
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in (".png", ".jpg", ".jpeg", ".webp"):
+        ext = ".png"
+
+    sig_dir = os.path.join("assets", "signatures")
+    os.makedirs(sig_dir, exist_ok=True)
+
+    dest_filename = f"{entity_type}_{entity_id}{ext}"
+    dest_path = os.path.join(sig_dir, dest_filename)
+
+    with open(dest_path, "wb") as f:
+        f.write(file_bytes)
+
+    return dest_path
+
+
+def remove_signature_image(path: str | None) -> None:
+    """Safely delete a signature file from disk."""
+    import os
+    if path and os.path.isfile(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+

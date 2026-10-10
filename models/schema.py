@@ -38,6 +38,7 @@ class User(Base):
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
     account_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    signature_image_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[Role] = relationship(back_populates="users")
     student: Mapped["Student | None"] = relationship(back_populates="user", uselist=False)
     faculty_subjects: Mapped[list["FacultySubject"]] = relationship(
@@ -85,6 +86,9 @@ class Subject(Base):
     faculty_subjects: Mapped[list["FacultySubject"]] = relationship(
         back_populates="subject", foreign_keys="FacultySubject.subject_id"
     )
+    header_config: Mapped["SubjectHeaderConfig | None"] = relationship(
+        back_populates="subject", uselist=False
+    )
 
 
 class FacultySubject(Base):
@@ -112,6 +116,10 @@ class Practical(Base):
     grade: Mapped[str] = mapped_column(String(3), default="A")
     submission_days: Mapped[int] = mapped_column(Integer, default=7)
     submission_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # PDF display fields — nullable, added non-breaking
+    unit_name: Mapped[str | None] = mapped_column(String(100), nullable=True)       # e.g. "Unit-1 & Unit-2"
+    practical_code: Mapped[str | None] = mapped_column(String(30), nullable=True)   # e.g. "U1-P1"; fallback: "P{n}"
+    assigned_date: Mapped[date | None] = mapped_column(Date, nullable=True)         # target start date for PDF
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     subject: Mapped[Subject] = relationship(back_populates="practicals")
     assignments: Mapped[list["Assignment"]] = relationship(back_populates="practical", cascade="all, delete-orphan")
@@ -165,6 +173,7 @@ class Evaluation(Base):
     published: Mapped[bool] = mapped_column(Boolean, default=False)
     evaluated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     submission: Mapped[Submission] = relationship(back_populates="evaluation")
+    evaluator: Mapped[User] = relationship(foreign_keys=[evaluator_id])
 
 
 class AuditLog(Base):
@@ -217,6 +226,26 @@ class PasswordReset(Base):
     used: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class SubjectHeaderConfig(Base):
+    """Per-subject configurable PDF header set by the faculty.
+
+    All fields have sensible defaults so the PDF can always be generated
+    even if the faculty has not explicitly configured it yet.
+    """
+    __tablename__ = "subject_header_configs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int] = mapped_column(ForeignKey("subjects.id"), unique=True, index=True)
+    institution_name: Mapped[str] = mapped_column(String(200), default="Gujarat Vidyapith")
+    department_name: Mapped[str] = mapped_column(String(200), default="Department of Computer Science")
+    course_name: Mapped[str] = mapped_column(String(150), default="")
+    academic_year: Mapped[str] = mapped_column(String(50), default="2026-27")
+    subject_teacher: Mapped[str] = mapped_column(String(150), default="")
+    subject_title: Mapped[str] = mapped_column(String(300), default="")
+    signature_image_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+    subject: Mapped[Subject] = relationship(back_populates="header_config")
+
+
 all_models = (
     Role,
     Department,
@@ -232,4 +261,5 @@ all_models = (
     AuditLog,
     LoginLog,
     PasswordReset,
+    SubjectHeaderConfig,
 )

@@ -29,19 +29,37 @@ def upgrade() -> None:
             'subject_header_configs',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('subject_id', sa.Integer(), nullable=False),
-            sa.Column('department_name', sa.String(length=150), nullable=False),
-            sa.Column('program_name', sa.String(length=100), nullable=False),
-            sa.Column('semester_label', sa.String(length=50), nullable=False),
-            sa.Column('subject_name', sa.String(length=150), nullable=False),
-            sa.Column('subject_code', sa.String(length=30), nullable=False),
-            sa.Column('subject_teacher', sa.String(length=100), nullable=True),
+            sa.Column('institution_name', sa.String(length=200), server_default='Gujarat Vidyapith', nullable=False),
+            sa.Column('department_name', sa.String(length=200), server_default='Department of Computer Science', nullable=False),
+            sa.Column('course_name', sa.String(length=150), server_default='', nullable=False),
+            sa.Column('academic_year', sa.String(length=50), server_default='2026-27', nullable=False),
+            sa.Column('subject_teacher', sa.String(length=150), server_default='', nullable=False),
+            sa.Column('subject_title', sa.String(length=300), server_default='', nullable=False),
             sa.Column('signature_image_path', sa.String(length=255), nullable=True),
-            sa.Column('created_at', sa.DateTime(), nullable=False),
-            sa.Column('updated_at', sa.DateTime(), nullable=False),
+            sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
             sa.ForeignKeyConstraint(['subject_id'], ['subjects.id']),
             sa.PrimaryKeyConstraint('id'),
             sa.UniqueConstraint('subject_id')
         )
+    else:
+        cfg_cols = [c["name"] for c in insp.get_columns("subject_header_configs")]
+        with op.batch_alter_table('subject_header_configs', schema=None) as batch_op:
+            if 'institution_name' not in cfg_cols:
+                batch_op.add_column(sa.Column('institution_name', sa.String(length=200), server_default='Gujarat Vidyapith', nullable=False))
+            if 'department_name' not in cfg_cols:
+                batch_op.add_column(sa.Column('department_name', sa.String(length=200), server_default='Department of Computer Science', nullable=False))
+            if 'course_name' not in cfg_cols:
+                batch_op.add_column(sa.Column('course_name', sa.String(length=150), server_default='', nullable=False))
+            if 'academic_year' not in cfg_cols:
+                batch_op.add_column(sa.Column('academic_year', sa.String(length=50), server_default='2026-27', nullable=False))
+            if 'subject_teacher' not in cfg_cols:
+                batch_op.add_column(sa.Column('subject_teacher', sa.String(length=150), server_default='', nullable=False))
+            if 'subject_title' not in cfg_cols:
+                batch_op.add_column(sa.Column('subject_title', sa.String(length=300), server_default='', nullable=False))
+            if 'signature_image_path' not in cfg_cols:
+                batch_op.add_column(sa.Column('signature_image_path', sa.String(length=255), nullable=True))
+            if 'updated_at' not in cfg_cols:
+                batch_op.add_column(sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now(), nullable=False))
 
     if "practicals" in tables:
         practical_cols = [c["name"] for c in insp.get_columns("practicals")]

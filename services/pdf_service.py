@@ -149,22 +149,25 @@ ACTIVITY_BODY = ParagraphStyle(
 ACTIVITY_BULLET_1 = ParagraphStyle(
     "ActB1",
     parent=ACTIVITY_BODY,
-    leftIndent=12,
-    firstLineIndent=-8,
+    leftIndent=10,
+    firstLineIndent=-6,
+    spaceAfter=1,
 )
 
 ACTIVITY_BULLET_2 = ParagraphStyle(
     "ActB2",
     parent=ACTIVITY_BODY,
-    leftIndent=24,
-    firstLineIndent=-8,
+    leftIndent=18,
+    firstLineIndent=-6,
+    spaceAfter=1,
 )
 
 ACTIVITY_BULLET_3 = ParagraphStyle(
     "ActB3",
     parent=ACTIVITY_BODY,
-    leftIndent=36,
-    firstLineIndent=-8,
+    leftIndent=26,
+    firstLineIndent=-6,
+    spaceAfter=1,
 )
 
 ACTIVITY_CODE = ParagraphStyle(
@@ -172,8 +175,9 @@ ACTIVITY_CODE = ParagraphStyle(
     parent=ACTIVITY_BODY,
     fontName="Courier",
     fontSize=7,
-    leading=9,
-    leftIndent=12,
+    leading=8.5,
+    leftIndent=8,
+    spaceAfter=0.5,
 )
 
 CELL_CENTER = ParagraphStyle(
@@ -308,33 +312,75 @@ def _safe_xml(text: str) -> str:
     return s
 
 
-# ── Helper: build Lab Activity cell content ──────────────────────────────────
+BOX_DRAWING_MAP = {
+    "├── ": "+-- ",
+    "└── ": "\\-- ",
+    "├──": "+--",
+    "└──": "\\--",
+    "│   ": "|   ",
+    "│  ": "|  ",
+    "│ ": "| ",
+    "│": "|",
+    "─": "-",
+    "┌": "+",
+    "└": "\\",
+    "├": "+",
+    "┬": "+",
+    "┴": "+",
+    "┼": "+",
+}
+
+ACTION_VERBS = {
+    "create", "generate", "read", "display", "validate", "write",
+    "accept", "identify", "check", "update", "implement", "define",
+    "show", "calculate", "print", "import", "test", "configure",
+    "setup", "install", "build", "develop", "load", "parse", "convert",
+    "add", "remove", "delete", "modify", "extract", "save", "execute",
+    "run", "prepare", "design", "verify", "demonstrate", "apply"
+}
+
+INTRO_PROMPTS = (
+    "the application should", "the program should", "the project should",
+    "perform the following", "follow the structure", "following tasks",
+    "instructions:", "requirements:", "steps:", "procedure:",
+)
+
+
+def _clean_box_chars(text: str) -> str:
+    for k, v in BOX_DRAWING_MAP.items():
+        text = text.replace(k, v)
+    return text
+
 
 def _build_activity_cell(practical) -> list:
     """Return a list of ReportLab flowables for the 'Lab Activity' column.
 
     Properly formats:
       - Title line (bold)
-      - Introductory description
-      - Multi-level bullets (Level 1 ●, Level 2 ○, Level 3 ■, or numbered)
-      - CLI / tree / code blocks in Courier monospace
+      - Introductory description & prompt lines
+      - Multi-level bullets (Level 1, Level 2, or numbered) using standard HTML &bull;
+      - CLI / tree / code blocks in Courier monospace with box-drawing characters converted to ASCII
       - Optional learning outcome in italics
     """
     parts: list = []
 
-    # Title line
     title = (practical.title or "").strip()
     description = (practical.description or "").strip()
 
-    # Avoid duplicating title if description already begins with it
+    title_rendered = False
     if title and not description.startswith(title):
         parts.append(Paragraph(f"<b>{_safe_xml(title)}</b>", ACTIVITY_TITLE))
+        title_rendered = True
 
     if description:
         lines = description.splitlines()
-        for raw_line in lines:
+        in_tree_block = False
+        in_sub_items = False
+
+        for line_idx, raw_line in enumerate(lines):
             stripped = raw_line.strip()
             if not stripped:
+                in_sub_items = False
                 parts.append(Spacer(1, 2))
                 continue
 
@@ -343,34 +389,88 @@ def _build_activity_cell(practical) -> list:
             if "\t" in raw_line[:leading_spaces]:
                 leading_spaces += raw_line[:leading_spaces].count("\t") * 3
 
-            # Check for code/tree snippet
-            is_code = (
-                stripped.startswith(("python ", "$ ", "> ", "npm ", "pip "))
-                or any(c in stripped for c in ("├──", "└──", "│   ", ".env", "main.py"))
+            # Clean any unicode box characters to pure ASCII
+            cleaned_line = _clean_box_chars(raw_line)
+            cleaned_stripped = cleaned_line.strip()
+
+            # 1. Tree / code snippet detection
+            has_box_chars = any(c in raw_line for c in ("├", "└", "│", "─", "┌", "┬", "┴", "┼"))
+            is_tree_branch = cleaned_stripped.startswith(("+--", "|--", "\\--", "| ", "|", "+-", "\\-"))
+            is_cli = cleaned_stripped.startswith(("$ ", "> ", "# ", "python ", "npm ", "pip ", "git ", "node "))
+            is_tree_root = (
+                stripped.endswith("/")
+                and len(stripped.split()) == 1
+                and not any(stripped.lower().startswith(v) for v in ACTION_VERBS)
             )
 
-            if is_code:
-                parts.append(Paragraph(_safe_xml(stripped), ACTIVITY_CODE))
+            if has_box_chars or is_tree_branch or is_cli or is_tree_root or (
+                in_tree_block and (stripped.endswith("/") or ("." in stripped and " " not in stripped))
+            ):
+                in_tree_block = True
+                in_sub_items = False
+                parts.append(Paragraph(_safe_xml(cleaned_line.rstrip()), ACTIVITY_CODE))
                 continue
 
-            # Check for level 3 bullets
-            if stripped.startswith(("■ ", "[x] ", "▪ ")) or (leading_spaces >= 12 and stripped.startswith(("-", "*", "•", "○", "●"))):
-                content = stripped.lstrip("■▪-*•○● ")
-                parts.append(Paragraph(f"■ {_safe_xml(content)}", ACTIVITY_BULLET_3))
-            # Check for level 2 bullets
-            elif stripped.startswith(("○ ", "(a) ", "(b) ", "(c) ", "(i) ", "(ii) ")) or (leading_spaces >= 6 and stripped.startswith(("-", "*", "•", "●"))):
-                content = stripped.lstrip("○-*•● ")
-                parts.append(Paragraph(f"○ {_safe_xml(content)}", ACTIVITY_BULLET_2))
-            # Check for level 1 bullets or numbered
-            elif stripped.startswith(("● ", "• ", "- ", "* ")):
-                content = stripped.lstrip("●•-* ")
-                parts.append(Paragraph(f"● {_safe_xml(content)}", ACTIVITY_BULLET_1))
-            elif re.match(r"^\d+[\.\)]\s+", stripped):
-                # Numbered item e.g. "1. " or "1) "
-                parts.append(Paragraph(_safe_xml(stripped), ACTIVITY_BULLET_1))
-            else:
-                # Regular descriptive sentence
+            in_tree_block = False
+
+            # If title was not rendered above, make line 0 the bold activity title
+            if line_idx == 0 and not title_rendered:
+                parts.append(Paragraph(f"<b>{_safe_xml(stripped)}</b>", ACTIVITY_TITLE))
+                title_rendered = True
+                continue
+
+            # 2. Explicit bullet or numbered markers
+            bullet_match = re.match(r"^([•●○■▪▫–—⁃\-\*\+]|&bull;)\s*(.*)$", stripped)
+            num_match = re.match(r"^(\d+|[a-zA-Z]|[ivxIVX]+)[\.\)]\s*(.*)$", stripped)
+
+            if bullet_match:
+                content = bullet_match.group(2).strip()
+                if leading_spaces >= 4 or in_sub_items:
+                    parts.append(Paragraph(f"&bull;&nbsp;&nbsp;{_safe_xml(content)}", ACTIVITY_BULLET_2))
+                else:
+                    parts.append(Paragraph(f"&bull;&nbsp;&nbsp;{_safe_xml(content)}", ACTIVITY_BULLET_1))
+                in_sub_items = content.endswith(":")
+                continue
+
+            if num_match:
+                prefix = num_match.group(1)
+                content = num_match.group(2).strip()
+                if leading_spaces >= 4 or in_sub_items:
+                    parts.append(Paragraph(f"{_safe_xml(prefix)}.&nbsp;&nbsp;{_safe_xml(content)}", ACTIVITY_BULLET_2))
+                else:
+                    parts.append(Paragraph(f"{_safe_xml(prefix)}.&nbsp;&nbsp;{_safe_xml(content)}", ACTIVITY_BULLET_1))
+                in_sub_items = content.endswith(":")
+                continue
+
+            # 3. Indented lines (sub-items)
+            if leading_spaces >= 2:
+                parts.append(Paragraph(f"&bull;&nbsp;&nbsp;{_safe_xml(stripped)}", ACTIVITY_BULLET_2))
+                continue
+
+            # 4. Intro prompts (e.g. 'The application should perform the following tasks:')
+            low = stripped.lower()
+            if any(p in low for p in INTRO_PROMPTS):
+                in_sub_items = False
                 parts.append(Paragraph(_safe_xml(stripped), ACTIVITY_BODY))
+                continue
+
+            # 5. First word check & sub-item continuation
+            first_word = stripped.split()[0].rstrip(":,.;").lower() if stripped.split() else ""
+            ends_with_colon = stripped.endswith(":")
+
+            if in_sub_items and first_word not in ACTION_VERBS and not ends_with_colon:
+                # Sub-item e.g. 'requests', 'pandas', 'API Key'
+                parts.append(Paragraph(f"&bull;&nbsp;&nbsp;{_safe_xml(stripped)}", ACTIVITY_BULLET_2))
+                continue
+
+            if line_idx > 0 and (first_word in ACTION_VERBS or ends_with_colon):
+                # Task action requirement
+                parts.append(Paragraph(f"&bull;&nbsp;&nbsp;{_safe_xml(stripped)}", ACTIVITY_BULLET_1))
+                in_sub_items = ends_with_colon
+                continue
+
+            # Default normal descriptive sentence
+            parts.append(Paragraph(_safe_xml(stripped), ACTIVITY_BODY))
 
     # Learning outcome appended in italics if present
     outcome = (practical.learning_outcome or "").strip()

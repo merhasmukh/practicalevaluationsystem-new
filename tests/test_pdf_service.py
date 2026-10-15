@@ -232,3 +232,39 @@ def test_generate_student_pdf_with_signature_image():
         assert content.startswith(b"%PDF-")
         assert len(content) > 1000
 
+
+def test_massive_practical_description_chunks_across_pages():
+    """Verify that a practical with an exceptionally large description (>800 pt)
+
+    chunks automatically across table rows and renders across pages without
+    triggering a ReportLab LayoutError ('too large in frame').
+    """
+    with _setup_test_db() as db:
+        dept = Department(code="CS", name="Dept of CS")
+        subj = Subject(code="AI101", name="AI Lab", department=dept, semester=1)
+        teacher = User(username="prof", full_name="Professor One", email="prof@univ.edu", password_hash="dummy", role=Role(name="Faculty"))
+        db.add_all([dept, subj, teacher])
+        db.commit()
+
+        massive_desc = "Develop an advanced AI system with the following detailed components:\n" + "\n".join([
+            f"- Requirement {i}: Perform detailed step {i} involving multiple configuration checks and data validation."
+            for i in range(1, 90)
+        ])
+
+        p_massive = Practical(
+            subject_id=subj.id,
+            practical_number=1,
+            practical_code="P1",
+            title="Massive Practical Title",
+            description=massive_desc,
+            created_by=teacher.id,
+        )
+        db.add(p_massive)
+        db.commit()
+
+        # Should generate without any LayoutError
+        pdf_buf = generate_blank_master_pdf(db, subj.id)
+        content = pdf_buf.getvalue()
+        assert content.startswith(b"%PDF-")
+        assert len(content) > 2000
+

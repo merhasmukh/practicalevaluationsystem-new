@@ -373,7 +373,16 @@ def _build_activity_cell(practical) -> list:
         title_rendered = True
 
     if description:
-        lines = description.splitlines()
+        raw_lines = description.splitlines()
+        lines: list[str] = []
+        for l in raw_lines:
+            # If a line is exceptionally long (> 350 chars) and not a tree structure, split by sentences
+            if len(l) > 350 and not any(c in l for c in ("├", "└", "│", "+-", "|-")):
+                sentences = re.split(r"(?<=\.)\s+", l)
+                lines.extend(s for s in sentences if s)
+            else:
+                lines.append(l)
+
         in_tree_block = False
         in_sub_items = False
 
@@ -561,6 +570,45 @@ def _build_grade_scheme_table() -> Table:
     return t
 
 
+def _chunk_activity_flowables(
+    flowables: list,
+    max_height: float = 420.0,
+    col_width: float = 228.0,
+) -> list[list]:
+    """Split a practical's activity flowables into chunks if they exceed max_height.
+
+    ReportLab cannot split a single table row across pages. If a single row's
+    height exceeds the frame height (~773 pt), doc.build() raises a LayoutError.
+    Chunking the flowables across multiple table rows ensures seamless page splits
+    even for practicals with dozens of detailed requirements.
+    """
+    if not flowables:
+        return [[]]
+
+    chunks: list[list] = []
+    current_chunk: list = []
+    current_height = 0.0
+
+    for f in flowables:
+        try:
+            _, h = f.wrap(col_width, 99999)
+        except Exception:
+            h = 10.0
+
+        if current_chunk and (current_height + h > max_height):
+            chunks.append(current_chunk)
+            current_chunk = [f]
+            current_height = h
+        else:
+            current_chunk.append(f)
+            current_height += h
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks if chunks else [flowables]
+
+
 # ── Helper: practicals main table ────────────────────────────────────────────
 
 def _build_practicals_table(
@@ -686,21 +734,46 @@ def _build_practicals_table(
             sign_cell = Paragraph("", CELL_CENTER)
 
         pcode_para = Paragraph(f"<b>{_safe_xml(pcode)}</b>", CELL_CENTER_BOLD)
-        activity_flowables = _build_activity_cell(p)
         assigned_para = Paragraph(_safe_xml(assigned_dt), CELL_CENTER)
         submit_para = Paragraph(_safe_xml(submission_dt), CELL_CENTER)
         remarks_para = Paragraph(_safe_xml(remarks_val), CELL_LEFT)
         grade_para = Paragraph(f"<b>{_safe_xml(grade_val)}</b>" if grade_val else "", CELL_CENTER)
 
-        all_rows.append([
-            pcode_para,
-            activity_flowables,
-            assigned_para,
-            submit_para,
-            sign_cell,
-            remarks_para,
-            grade_para,
-        ])
+        activity_flowables = _build_activity_cell(p)
+        chunks = _chunk_activity_flowables(activity_flowables, max_height=420.0, col_width=col_widths[1])
+
+        num_chunks = len(chunks)
+        for c_idx, chunk in enumerate(chunks):
+            is_first = (c_idx == 0)
+            is_last = (c_idx == num_chunks - 1)
+
+            if is_first:
+                col_pcode = pcode_para
+                col_assigned = assigned_para
+            else:
+                col_pcode = Paragraph(f"<font size=6.5><b>{_safe_xml(pcode)}</b><br/>(cont.)</font>", CELL_CENTER)
+                col_assigned = Paragraph("", CELL_CENTER)
+
+            if is_last:
+                col_submit = submit_para
+                col_sign = sign_cell
+                col_remarks = remarks_para
+                col_grade = grade_para
+            else:
+                col_submit = Paragraph("", CELL_CENTER)
+                col_sign = Paragraph("", CELL_CENTER)
+                col_remarks = Paragraph("", CELL_LEFT)
+                col_grade = Paragraph("", CELL_CENTER)
+
+            all_rows.append([
+                col_pcode,
+                chunk,
+                col_assigned,
+                col_submit,
+                col_sign,
+                col_remarks,
+                col_grade,
+            ])
 
     table = Table(all_rows, colWidths=col_widths, repeatRows=1, splitByRow=True)
 

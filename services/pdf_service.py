@@ -736,7 +736,7 @@ def _build_practicals_table(
         pcode_para = Paragraph(f"<b>{_safe_xml(pcode)}</b>", CELL_CENTER_BOLD)
         assigned_para = Paragraph(_safe_xml(assigned_dt), CELL_CENTER)
         submit_para = Paragraph(_safe_xml(submission_dt), CELL_CENTER)
-        remarks_para = Paragraph(_safe_xml(remarks_val), CELL_LEFT)
+        remarks_para = Paragraph(_safe_xml(remarks_val), CELL_CENTER)
         grade_para = Paragraph(f"<b>{_safe_xml(grade_val)}</b>" if grade_val else "", CELL_CENTER)
 
         activity_flowables = _build_activity_cell(p)
@@ -762,7 +762,7 @@ def _build_practicals_table(
             else:
                 col_submit = Paragraph("", CELL_CENTER)
                 col_sign = Paragraph("", CELL_CENTER)
-                col_remarks = Paragraph("", CELL_LEFT)
+                col_remarks = Paragraph("", CELL_CENTER)
                 col_grade = Paragraph("", CELL_CENTER)
 
             all_rows.append([
@@ -790,20 +790,20 @@ def _build_practicals_table(
         ('VALIGN',        (0, 0), (-1, 0),  'MIDDLE'),
         ('ALIGN',         (0, 0), (-1, 0),  'CENTER'),
 
-        # Data cell vertical alignments
-        ('VALIGN',        (0, 1), (0, -1),  'TOP'),     # Practical No. at TOP
-        ('VALIGN',        (1, 1), (1, -1),  'TOP'),     # Lab Activity at TOP
-        ('VALIGN',        (2, 1), (3, -1),  'BOTTOM'),  # Dates at BOTTOM (matches sample PDF)
-        ('VALIGN',        (4, 1), (4, -1),  'MIDDLE'),  # Sign at MIDDLE
-        ('VALIGN',        (5, 1), (5, -1),  'TOP'),     # Remarks at TOP
-        ('VALIGN',        (6, 1), (6, -1),  'MIDDLE'),  # Grade at MIDDLE
+        # Data cell vertical alignments (all metadata centered vertically; activity starts at top)
+        ('VALIGN',        (0, 1), (0, -1),  'MIDDLE'), # Practical No. at MIDDLE
+        ('VALIGN',        (1, 1), (1, -1),  'TOP'),    # Lab Activity at TOP
+        ('VALIGN',        (2, 1), (3, -1),  'MIDDLE'), # Assigned & Submission Dates at MIDDLE
+        ('VALIGN',        (4, 1), (4, -1),  'MIDDLE'), # Sign at MIDDLE
+        ('VALIGN',        (5, 1), (5, -1),  'MIDDLE'), # Remarks at MIDDLE
+        ('VALIGN',        (6, 1), (6, -1),  'MIDDLE'), # Grade at MIDDLE
 
         # Data cell horizontal alignments
         ('ALIGN',         (0, 1), (0, -1),  'CENTER'),
         ('ALIGN',         (1, 1), (1, -1),  'LEFT'),
         ('ALIGN',         (2, 1), (3, -1),  'CENTER'),
         ('ALIGN',         (4, 1), (4, -1),  'CENTER'),
-        ('ALIGN',         (5, 1), (5, -1),  'LEFT'),
+        ('ALIGN',         (5, 1), (5, -1),  'CENTER'), # Remarks at CENTER
         ('ALIGN',         (6, 1), (6, -1),  'CENTER'),
 
         # Cell paddings

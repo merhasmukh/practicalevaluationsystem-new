@@ -570,38 +570,70 @@ def _build_grade_scheme_table() -> Table:
     return t
 
 
+def _measure_activity_cell_height(flowables: list, col_width: float = 228.0) -> float:
+    """Return the exact rendered height of *flowables* inside the Lab Activity cell."""
+    if not flowables:
+        return 6.0
+    probe = Table([[flowables]], colWidths=[col_width])
+    probe.setStyle(TableStyle([
+        ("TOPPADDING",    (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+    ]))
+    _, height = probe.wrap(col_width, 99999)
+    return float(height)
+
+
 def _chunk_activity_flowables(
     flowables: list,
-    max_height: float = 420.0,
+    max_height: float = 735.0,
     col_width: float = 228.0,
 ) -> list[list]:
-    """Split a practical's activity flowables into chunks if they exceed max_height.
+    """Split a practical's activity flowables into chunks only if they exceed a full page.
 
-    ReportLab cannot split a single table row across pages. If a single row's
-    height exceeds the frame height (~773 pt), doc.build() raises a LayoutError.
-    Chunking the flowables across multiple table rows ensures seamless page splits
-    even for practicals with dozens of detailed requirements.
+    ReportLab cannot split a single table row across pages. On A4 with 1 cm margins
+    (~773 pt frame height minus ~26 pt repeated table header), a row up to ~735 pt
+    fits on a single page intact without needing `(cont.)` splitting. Only practicals
+    that exceed a full page are split so chunks spill cleanly across separate pages
+    instead of dividing a single practical into two parts on the same page.
     """
     if not flowables:
         return [[]]
 
+    if _measure_activity_cell_height(flowables, col_width) <= max_height:
+        return [flowables]
+
+    inner_width = max(col_width - 8.0, 50.0)
     chunks: list[list] = []
     current_chunk: list = []
-    current_height = 0.0
+    current_height = 6.0  # TOPPADDING (3) + BOTTOMPADDING (3)
 
     for f in flowables:
         try:
-            _, h = f.wrap(col_width, 99999)
+            _, h = f.wrap(inner_width, 99999)
+            sa = getattr(f, "getSpaceAfter", lambda: 0)()
+            sb = getattr(f, "getSpaceBefore", lambda: 0)()
+            fh = h + max(sa, sb)
         except Exception:
-            h = 10.0
+            fh = 10.0
 
-        if current_chunk and (current_height + h > max_height):
+        candidate = current_chunk + [f]
+        would_exceed = current_height + fh > max_height
+        if not would_exceed and current_height + fh > max_height - 25.0:
+            would_exceed = _measure_activity_cell_height(candidate, col_width) > max_height
+
+        if current_chunk and would_exceed:
             chunks.append(current_chunk)
-            current_chunk = [f]
-            current_height = h
+            if isinstance(f, Spacer):
+                current_chunk = []
+                current_height = 6.0
+            else:
+                current_chunk = [f]
+                current_height = 6.0 + fh
         else:
-            current_chunk.append(f)
-            current_height += h
+            current_chunk = candidate
+            current_height += fh
 
     if current_chunk:
         chunks.append(current_chunk)
@@ -740,7 +772,7 @@ def _build_practicals_table(
         grade_para = Paragraph(f"<b>{_safe_xml(grade_val)}</b>" if grade_val else "", CELL_CENTER)
 
         activity_flowables = _build_activity_cell(p)
-        chunks = _chunk_activity_flowables(activity_flowables, max_height=420.0, col_width=col_widths[1])
+        chunks = _chunk_activity_flowables(activity_flowables, max_height=735.0, col_width=col_widths[1])
 
         num_chunks = len(chunks)
         for c_idx, chunk in enumerate(chunks):

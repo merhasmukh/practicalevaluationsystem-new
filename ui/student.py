@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from models.schema import Assignment, Practical, Student, Subject, Submission
-from services.core_services import _github_url_type, save_submission
+from services.core_services import _github_url_type, delete_submission, save_submission
 from services.pdf_service import generate_practical_list_pdf
 
 
@@ -124,25 +124,51 @@ def _render_practical(db, assignment: Assignment, student: Student) -> None:
                     st.write(f"*Remarks:* {ev.remarks}")
                 if ev.suggestions:
                     st.write(f"*Suggestions:* {ev.suggestions}")
-            elif sub.evaluation:
+            elif sub.evaluation or assignment.status == "Evaluated":
                 st.info("Evaluation in progress — not published yet.")
             else:
                 st.info("Submitted — awaiting evaluation.")
-                
-                # Allow edit if before deadline
-                if _utc_now() <= assignment.deadline:
-                    with st.expander("✏️ Edit Submission", expanded=False):
-                        st.caption("You can update your submission link before the deadline.")
-                        _render_submission_form(
-                            db, 
-                            assignment, 
-                            student, 
-                            default_url=sub.github_url, 
-                            default_branch=sub.branch, 
-                            default_notes=sub.documentation
-                        )
-                else:
-                    st.caption("🔒 The deadline has passed. You can no longer edit this submission.")
+                if _utc_now() > assignment.deadline:
+                    st.warning(
+                        "⏰ **Deadline has passed.** Updating your submission or deleting and "
+                        "re-submitting will mark your submission as **late**."
+                    )
+
+                with st.expander("✏️ Edit Submission", expanded=False):
+                    st.caption("You can update your submission details while this practical is not graded.")
+                    _render_submission_form(
+                        db,
+                        assignment,
+                        student,
+                        default_url=sub.github_url,
+                        default_branch=sub.branch,
+                        default_notes=sub.documentation,
+                    )
+
+                confirm_key = f"confirm_delete_submission_{assignment.id}"
+                with st.expander("🗑️ Delete Submission", expanded=bool(st.session_state.get(confirm_key))):
+                    st.caption("Delete your submission if you want to remove it before grading.")
+                    if not st.session_state.get(confirm_key):
+                        if st.button("Delete submission", key=f"del_sub_init_{assignment.id}"):
+                            st.session_state[confirm_key] = True
+                            st.rerun()
+                    else:
+                        st.warning("Are you sure you want to delete this submission? This cannot be undone.")
+                        col_confirm, col_cancel = st.columns(2)
+                        with col_confirm:
+                            if st.button("Confirm delete", type="primary", key=f"del_sub_confirm_{assignment.id}"):
+                                try:
+                                    delete_submission(db, assignment.id, student.user_id)
+                                    st.session_state.pop(confirm_key, None)
+                                    st.success("Submission deleted.")
+                                    st.rerun()
+                                except ValueError as error:
+                                    st.session_state.pop(confirm_key, None)
+                                    st.error(str(error))
+                        with col_cancel:
+                            if st.button("Cancel", key=f"del_sub_cancel_{assignment.id}"):
+                                st.session_state.pop(confirm_key, None)
+                                st.rerun()
 
         elif is_overdue:
             st.warning(

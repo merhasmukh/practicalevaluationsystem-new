@@ -137,94 +137,214 @@ def _practical_management(db, user_id: int, subject_labels: dict[int, str]) -> N
     with st.expander("Bulk import practicals", expanded=False):
         _bulk_practical_import(db, user_id)
 
-    with st.form("create_practical", clear_on_submit=True):
+    if "create_practical_reset" not in st.session_state:
+        st.session_state["create_practical_reset"] = 0
+    reset_idx = st.session_state["create_practical_reset"]
+
+    with st.form(f"create_practical_{reset_idx}", clear_on_submit=False):
         st.caption("Create a new practical for one of your subjects")
-        subject = st.selectbox("Subject", subjects, format_func=lambda item: f"{item.code} · {item.name}", key="create_practical_subject")
-        title = st.text_input("Practical title")
-        description = st.text_area("Description")
-        learning_outcome = st.text_area("Learning outcome")
-        difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], index=1)
-        submission_date = st.date_input("Submission date (optional)", value=None, min_value=date.today())
+        subject = st.selectbox(
+            "Subject",
+            subjects,
+            format_func=lambda item: f"{item.code} · {item.name}",
+            key=f"create_practical_subject_{reset_idx}",
+        )
+        title = st.text_input("Practical title *", key=f"create_p_title_{reset_idx}")
+        description = st.text_area("Description", key=f"create_p_desc_{reset_idx}")
+        learning_outcome = st.text_area("Learning outcome", key=f"create_p_outcome_{reset_idx}")
+        difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], index=1, key=f"create_p_diff_{reset_idx}")
+        submission_date = st.date_input(
+            "Submission due date *",
+            value=None,
+            min_value=date.today(),
+            key=f"create_p_due_{reset_idx}",
+            help="Required due date for student submissions.",
+        )
         # PDF-specific optional fields
         with st.expander("🗒️ PDF display fields (optional)", expanded=False):
             st.caption("These fields control how the practical appears in generated PDFs.")
-            unit_name = st.text_input("Unit name", placeholder="e.g. Unit-1 & Unit-2", help="Unit grouping banner shown in the PDF.")
-            practical_code = st.text_input("Practical code", placeholder="e.g. U1-P1", help="Shown in 'Practical No.' column. Defaults to P1, P2, ...")
-            assigned_date = st.date_input("Assigned date (for PDF)", value=None, help="The assigned / start date to show in the PDF.")
-        if st.form_submit_button("Create practical"):
+            unit_name = st.text_input(
+                "Unit name",
+                placeholder="e.g. Unit-1 & Unit-2",
+                help="Unit grouping banner shown in the PDF.",
+                key=f"create_p_unit_{reset_idx}",
+            )
+            practical_code = st.text_input(
+                "Practical code",
+                placeholder="e.g. U1-P1",
+                help="Shown in 'Practical No.' column. Defaults to P1, P2, ...",
+                key=f"create_p_code_{reset_idx}",
+            )
+            assigned_date = st.date_input(
+                "Assigned date (for PDF)",
+                value=None,
+                help="The assigned / start date to show in the PDF.",
+                key=f"create_p_assigned_dt_{reset_idx}",
+            )
+        if st.form_submit_button("Create practical", type="primary"):
             if not title.strip():
                 st.error("Enter a practical title.")
+            elif submission_date is None:
+                st.error("Select a submission due date. A due date is required to create a practical.")
             else:
-                p = create_practical(
-                    db,
-                    subject_id=subject.id,
-                    title=title,
-                    description=description,
-                    learning_outcome=learning_outcome,
-                    difficulty=difficulty,
-                    grade="A",  # default; set per-student during evaluation
-                    submission_date=submission_date,
-                    creator_id=user_id,
-                )
-                # Apply optional PDF fields
-                if unit_name.strip() or practical_code.strip() or assigned_date:
-                    update_practical(
-                        db, p.id, user_id,
-                        unit_name=unit_name.strip() or None,
-                        practical_code=practical_code.strip() or None,
-                        assigned_date=assigned_date or None,
+                try:
+                    p = create_practical(
+                        db,
+                        subject_id=subject.id,
+                        title=title,
+                        description=description,
+                        learning_outcome=learning_outcome,
+                        difficulty=difficulty,
+                        grade="A",  # default; set per-student during evaluation
+                        submission_date=submission_date,
+                        creator_id=user_id,
                     )
-                st.success(f"Practical created for {subject.code}.")
-                st.rerun()
+                    # Apply optional PDF fields
+                    if unit_name.strip() or practical_code.strip() or assigned_date:
+                        update_practical(
+                            db,
+                            p.id,
+                            user_id,
+                            unit_name=unit_name.strip() or None,
+                            practical_code=practical_code.strip() or None,
+                            assigned_date=assigned_date or None,
+                        )
+                    st.session_state["create_practical_reset"] += 1
+                    st.success(f"Practical created for {subject.code}.")
+                    st.rerun()
+                except ValueError as error:
+                    st.error(str(error))
 
-    practicals = faculty_practicals(db, user_id)
-    if not practicals:
+    all_practicals = faculty_practicals(db, user_id)
+    if not all_practicals:
         st.info("No practicals exist yet for your assigned subjects.")
         return
+
+    st.markdown("---")
+    st.subheader("Manage / edit existing practicals")
+    manage_subject = st.selectbox(
+        "Select subject",
+        subjects,
+        format_func=lambda item: f"{item.code} · {item.name}",
+        key="manage_practical_subject_select",
+    )
+    practicals = faculty_practicals(db, user_id, subject_id=manage_subject.id)
+    if not practicals:
+        st.info(f"No practicals exist yet for {manage_subject.code} · {manage_subject.name}.")
+        return
+
     selected = st.selectbox(
-        "Practical to manage",
+        "Select practical to edit or delete",
         practicals,
-        format_func=lambda item: f"{item.subject.code} · P{item.practical_number} · {item.title}",
-        key="manage_practical_select",
+        format_func=lambda item: (
+            f"P{item.practical_number} · {item.title} (Due: {item.submission_date:%d %b %Y})"
+            if item.submission_date
+            else f"P{item.practical_number} · {item.title} (No due date)"
+        ),
+        key=f"manage_practical_select_{manage_subject.id}",
     )
     manage_tab, delete_tab = st.tabs(["Edit practical", "Delete practical"])
     with manage_tab:
-        with st.form("update_practical_form"):
-            edited_title = st.text_input("Title", value=selected.title)
-            edited_description = st.text_area("Description", value=selected.description)
-            edited_outcome = st.text_area("Learning outcome", value=selected.learning_outcome)
-            difficulty_index = ["Easy", "Medium", "Hard"].index(selected.difficulty) if selected.difficulty in ["Easy", "Medium", "Hard"] else 1
-            edited_difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], index=difficulty_index)
+        with st.form(f"update_practical_form_{selected.id}"):
+            col_num, col_diff, col_marks = st.columns(3)
+            with col_num:
+                edited_number = st.number_input(
+                    "Practical number",
+                    min_value=1,
+                    step=1,
+                    value=int(selected.practical_number),
+                    key=f"edit_pnum_{selected.id}",
+                )
+            with col_diff:
+                difficulty_index = ["Easy", "Medium", "Hard"].index(selected.difficulty) if selected.difficulty in ["Easy", "Medium", "Hard"] else 1
+                edited_difficulty = st.selectbox(
+                    "Difficulty",
+                    ["Easy", "Medium", "Hard"],
+                    index=difficulty_index,
+                    key=f"edit_diff_{selected.id}",
+                )
+            with col_marks:
+                edited_max_marks = st.number_input(
+                    "Max marks",
+                    min_value=1,
+                    max_value=1000,
+                    step=1,
+                    value=int(selected.max_marks or 100),
+                    key=f"edit_marks_{selected.id}",
+                )
 
-            if selected.submission_date:
-                st.caption(f"Submission date is fixed at {selected.submission_date:%d %b %Y} to keep assigned deadlines immutable.")
-            else:
-                st.caption("Submission date is not set; no deadline will be enforced.")
+            edited_title = st.text_input("Title *", value=selected.title, key=f"edit_title_{selected.id}")
+            edited_description = st.text_area("Description", value=selected.description or "", key=f"edit_desc_{selected.id}")
+            edited_outcome = st.text_area("Learning outcome", value=selected.learning_outcome or "", key=f"edit_outcome_{selected.id}")
+
+            col_due, col_days = st.columns(2)
+            with col_due:
+                edited_submission_date = st.date_input(
+                    "Submission due date *",
+                    value=selected.submission_date,
+                    key=f"edit_due_{selected.id}",
+                    help="Updating the due date also updates deadlines for assigned students.",
+                )
+            with col_days:
+                edited_submission_days = st.number_input(
+                    "Default submission window (days)",
+                    min_value=1,
+                    max_value=365,
+                    step=1,
+                    value=int(selected.submission_days or 7),
+                    key=f"edit_days_{selected.id}",
+                )
 
             with st.expander("🗒️ PDF display fields (optional)", expanded=False):
                 st.caption("These fields only affect how the practical appears in generated PDFs.")
-                edited_unit_name = st.text_input("Unit name", value=selected.unit_name or "", placeholder="e.g. Unit-1 & Unit-2")
-                edited_pract_code = st.text_input("Practical code", value=selected.practical_code or "", placeholder="e.g. U1-P1")
-                edited_assigned_date = st.date_input("Assigned date (for PDF)", value=selected.assigned_date or None)
-
-            if st.form_submit_button("Save practical changes"):
-                update_practical(
-                    db,
-                    selected.id,
-                    user_id,
-                    title=edited_title,
-                    description=edited_description,
-                    learning_outcome=edited_outcome,
-                    difficulty=edited_difficulty,
-                    unit_name=edited_unit_name.strip() or None,
-                    practical_code=edited_pract_code.strip() or None,
-                    assigned_date=edited_assigned_date or None,
+                edited_unit_name = st.text_input(
+                    "Unit name",
+                    value=selected.unit_name or "",
+                    placeholder="e.g. Unit-1 & Unit-2",
+                    key=f"edit_unit_{selected.id}",
                 )
-                st.success("Practical updated.")
-                st.rerun()
+                edited_pract_code = st.text_input(
+                    "Practical code",
+                    value=selected.practical_code or "",
+                    placeholder="e.g. U1-P1",
+                    key=f"edit_pcode_{selected.id}",
+                )
+                edited_assigned_date = st.date_input(
+                    "Assigned date (for PDF)",
+                    value=selected.assigned_date or None,
+                    key=f"edit_asgn_dt_{selected.id}",
+                )
+
+            if st.form_submit_button("Save practical changes", type="primary"):
+                if not edited_title.strip():
+                    st.error("Enter a practical title.")
+                elif edited_submission_date is None:
+                    st.error("Select a submission due date.")
+                else:
+                    try:
+                        update_practical(
+                            db,
+                            selected.id,
+                            user_id,
+                            practical_number=int(edited_number),
+                            title=edited_title,
+                            description=edited_description,
+                            learning_outcome=edited_outcome,
+                            difficulty=edited_difficulty,
+                            max_marks=int(edited_max_marks),
+                            submission_date=edited_submission_date,
+                            submission_days=int(edited_submission_days),
+                            unit_name=edited_unit_name.strip() or None,
+                            practical_code=edited_pract_code.strip() or None,
+                            assigned_date=edited_assigned_date or None,
+                        )
+                        st.success("Practical updated.")
+                        st.rerun()
+                    except ValueError as error:
+                        st.error(str(error))
     with delete_tab:
         st.warning("Deleting a practical also removes its assignments. Practicals with student submissions cannot be deleted.")
-        if st.button("Delete this practical"):
+        if st.button("Delete this practical", key=f"delete_practical_btn_{selected.id}"):
             try:
                 delete_practical(db, selected.id, user_id)
                 st.success("Practical deleted.")
@@ -455,13 +575,16 @@ def _evaluation_ui(db, user_id: int, subject_labels: dict[int, str]) -> None:
         suggestions = st.text_area("Suggestions", value=st.session_state.get(ai_key_suggestions, default_suggestions))
         
         if st.form_submit_button("Publish evaluation", type="primary"):
-            grade_submission(db, submission.id, user_id, grade, remarks, suggestions)
-            st.success("Evaluation published.")
-            # Clear AI results from session state on successful publish
-            st.session_state.pop(ai_key_remarks, None)
-            st.session_state.pop(ai_key_suggestions, None)
-            st.session_state.pop(ai_key_questions, None)
-            st.rerun()
+            try:
+                grade_submission(db, submission.id, user_id, grade, remarks, suggestions)
+                st.success("Evaluation published.")
+                # Clear AI results from session state on successful publish
+                st.session_state.pop(ai_key_remarks, None)
+                st.session_state.pop(ai_key_suggestions, None)
+                st.session_state.pop(ai_key_questions, None)
+                st.rerun()
+            except ValueError as error:
+                st.error(str(error))
 
 
 # ── PDF Header Settings ───────────────────────────────────────────────────────

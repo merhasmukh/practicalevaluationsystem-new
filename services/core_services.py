@@ -103,9 +103,17 @@ def save_submission(db: Session, assignment_id: int, github_url: str, actor_id: 
             "Enter a valid GitHub URL (repository root or a direct file link like "
             "https://github.com/user/repo/blob/main/Solution.java)."
         )
-    assignment = db.scalar(select(Assignment).options(joinedload(Assignment.submission)).where(Assignment.id == assignment_id))
+    assignment = db.scalar(
+        select(Assignment)
+        .options(joinedload(Assignment.submission).joinedload(Submission.evaluation))
+        .where(Assignment.id == assignment_id)
+    )
     if not assignment:
         raise ValueError("Assignment not found.")
+    if assignment.status == "Evaluated" or (
+        assignment.submission is not None and assignment.submission.evaluation is not None
+    ):
+        raise ValueError("Cannot edit a submission that has already been graded.")
     if assignment.submission is None:
         submission = Submission(assignment=assignment, github_url=github_url.strip(), is_late=utc_now() > assignment.deadline, **fields)
         db.add(submission)
@@ -121,6 +129,35 @@ def save_submission(db: Session, assignment_id: int, github_url: str, actor_id: 
     db.commit()
     db.refresh(submission)
     return submission
+
+
+def delete_submission(db: Session, assignment_id: int, actor_id: int) -> None:
+    """Delete an ungraded submission for an assignment and revert status to Assigned."""
+    assignment = db.scalar(
+        select(Assignment)
+        .options(
+            joinedload(Assignment.student),
+            joinedload(Assignment.submission).joinedload(Submission.evaluation),
+        )
+        .where(Assignment.id == assignment_id)
+    )
+    if not assignment:
+        raise ValueError("Assignment not found.")
+    if assignment.student and assignment.student.user_id != actor_id:
+        raise ValueError("You can only delete your own submission.")
+    submission = assignment.submission
+    if submission is None:
+        raise ValueError("No submission found to delete.")
+    if submission.evaluation is not None or assignment.status == "Evaluated":
+        raise ValueError("Cannot delete a submission that has already been graded.")
+
+    submission_id = submission.id
+    github_url = submission.github_url
+    db.delete(submission)
+    assignment.submission = None
+    assignment.status = "Assigned"
+    audit(db, actor_id, "DELETE_SUBMISSION", "Assignment", assignment.id, f"Deleted submission {submission_id}: {github_url}")
+    db.commit()
 
 
 def grade_submission(db: Session, submission_id: int, evaluator_id: int, grade: str, remarks: str, suggestions: str) -> Evaluation:
@@ -696,6 +733,10 @@ def create_practical(
     learning_outcome: str = "",
     difficulty: str = "Medium",
 ) -> Practical:
+    if not title or not title.strip():
+        raise ValueError("Practical title is required.")
+    if submission_date is None:
+        raise ValueError("Submission due date is required.")
     grade = grade.strip().upper()
     if grade not in VALID_GRADES:
         raise ValueError("Grade must be one of A, B, C, D, E, or F.")
@@ -722,19 +763,85 @@ def update_practical(db: Session, practical_id: int, actor_id: int, **fields) ->
     practical = db.get(Practical, practical_id)
     if not practical:
         raise ValueError("Practical not found.")
-    # Submission date is intentionally immutable after creation once assignments exist.
-    # PDF display fields (unit_name, practical_code, assigned_date) are always mutable.
-    for key in ("title", "description", "learning_outcome", "difficulty", "max_marks",
-                "unit_name", "practical_code", "assigned_date"):
+    if "subject_id" in fields and fields["subject_id"] != practical.subject_id:
+        raise ValueError("A practical cannot be moved to another subject after creation.")
+
+    if "title" in fields:
+        new_title = (fields["title"] or "").strip()
+        if not new_title:
+            raise ValueError("Practical title is required.")
+        practical.title = new_title
+
+    if "difficulty" in fields:
+        difficulty = (fields["difficulty"] or "").strip()
+        if difficulty not in {"Easy", "Medium", "Hard"}:
+            raise ValueError("Difficulty must be Easy, Medium, or Hard.")
+        practical.difficulty = difficulty
+
+    if "max_marks" in fields:
+        max_marks = int(fields["max_marks"])
+        if max_marks <= 0:
+            raise ValueError("Max marks must be greater than zero.")
+        practical.max_marks = max_marks
+
+    if "submission_days" in fields:
+        submission_days = int(fields["submission_days"])
+        if submission_days <= 0:
+            raise ValueError("Submission days must be greater than zero.")
+        practical.submission_days = submission_days
+
+    if "practical_number" in fields:
+        pnum = int(fields["practical_number"])
+        if pnum <= 0:
+            raise ValueError("Practical number must be at least 1.")
+        if pnum != practical.practical_number:
+            duplicate = db.scalar(
+                select(Practical.id).where(
+                    Practical.subject_id == practical.subject_id,
+                    Practical.practical_number == pnum,
+                    Practical.id != practical.id,
+                )
+            )
+            if duplicate is not None:
+                raise ValueError(f"Practical number P{pnum} already exists for this subject.")
+            practical.practical_number = pnum
+
+    for key in ("description", "learning_outcome", "unit_name", "practical_code", "assigned_date"):
         if key in fields:
             setattr(practical, key, fields[key])
+
     if "grade" in fields:
         grade = fields["grade"].strip().upper()
         if grade not in VALID_GRADES:
             raise ValueError("Grade must be one of A, B, C, D, E, or F.")
         practical.grade = grade
-    if "subject_id" in fields and fields["subject_id"] != practical.subject_id:
-        raise ValueError("A practical cannot be moved to another subject after creation.")
+
+    if "submission_date" in fields:
+        new_submission_date = fields["submission_date"]
+        if new_submission_date is None:
+            raise ValueError("Submission due date is required.")
+        practical.submission_date = new_submission_date
+        new_deadline = datetime.combine(new_submission_date, time.max)
+        assignments = list(
+            db.scalars(
+                select(Assignment)
+                .where(Assignment.practical_id == practical.id)
+                .options(joinedload(Assignment.submission).joinedload(Submission.evaluation))
+            )
+        )
+        for assignment in assignments:
+            assignment.deadline = new_deadline
+            if assignment.submission:
+                submitted_at = assignment.submission.submitted_at or utc_now()
+                is_late = submitted_at > new_deadline
+                assignment.submission.is_late = is_late
+                is_evaluated = (
+                    assignment.status == "Evaluated"
+                    or (assignment.submission.evaluation is not None and assignment.submission.evaluation.published)
+                )
+                if not is_evaluated:
+                    assignment.status = "Late" if is_late else "Submitted"
+
     audit(db, actor_id, "UPDATE_PRACTICAL", "Practical", practical.id, f"{practical.subject_id}:{practical.title}")
     db.commit()
     db.refresh(practical)

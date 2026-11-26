@@ -268,3 +268,42 @@ def test_massive_practical_description_chunks_across_pages():
         assert content.startswith(b"%PDF-")
         assert len(content) > 2000
 
+
+def test_single_page_practical_not_split_into_cont_rows():
+    """A practical around ~480-550 pt fits on a single page and must stay in one row
+    instead of splitting into P9 + P9 (cont.) on the same page.
+    """
+    from services.pdf_service import _build_activity_cell, _chunk_activity_flowables
+
+    with _setup_test_db() as db:
+        dept = Department(code="CS", name="Dept of CS")
+        subj = Subject(code="AI105", name="LangChain Lab", department=dept, semester=1)
+        teacher = User(username="prof2", full_name="Professor Two", email="prof2@univ.edu", password_hash="dummy", role=Role(name="Faculty"))
+        db.add_all([dept, subj, teacher])
+        db.commit()
+
+        desc_45 = "Build a two-stage pipeline.\n" + "\n".join([
+            f"- Step {i}: Perform evaluation check {i} for email quality."
+            for i in range(1, 45)
+        ])
+        p = Practical(
+            subject_id=subj.id,
+            practical_number=9,
+            practical_code="P9",
+            title="Email Generator & Professionality Checker",
+            description=desc_45,
+            learning_outcome="LangChain Framework Understanding",
+            created_by=teacher.id,
+        )
+        db.add(p)
+        db.commit()
+
+        flowables = _build_activity_cell(p)
+        chunks = _chunk_activity_flowables(flowables, col_width=228.0)
+        assert len(chunks) == 1
+
+        pdf_buf = generate_blank_master_pdf(db, subj.id)
+        content = pdf_buf.getvalue()
+        assert content.startswith(b"%PDF-")
+        assert len(content) > 1000
+

@@ -15,6 +15,7 @@ from services.core_services import (
     delete_department,
     delete_practical,
     delete_subject,
+    delete_submission,
     delete_user,
     faculty_practicals,
     grade_submission,
@@ -490,3 +491,199 @@ def test_late_resubmission_updates_url():
     assert sub.is_late is True
     db.refresh(assignment)
     assert assignment.status == "Late"
+
+
+def test_create_practical_requires_submission_date():
+    db = setup_db()
+    world = seed_world(db)
+    with pytest.raises(ValueError, match="due date is required"):
+        create_practical(
+            db,
+            world["subject"].id,
+            "No Due Date",
+            "desc",
+            "A",
+            None,
+            world["faculty"].id,
+        )
+
+
+def test_update_practical_updates_due_date_and_all_fields():
+    db = setup_db()
+    world = seed_world(db)
+    initial_date = date.today() + timedelta(days=5)
+    new_date = date.today() + timedelta(days=15)
+    assigned_dt = date.today()
+    practical = create_practical(
+        db,
+        world["subject"].id,
+        "Initial Title",
+        "Initial Desc",
+        "A",
+        initial_date,
+        world["faculty"].id,
+        learning_outcome="Initial Outcome",
+        difficulty="Easy",
+    )
+
+    updated = update_practical(
+        db,
+        practical.id,
+        world["faculty"].id,
+        practical_number=3,
+        title="Updated Title",
+        description="Updated Desc",
+        learning_outcome="Updated Outcome",
+        difficulty="Hard",
+        max_marks=50,
+        submission_date=new_date,
+        submission_days=21,
+        unit_name="Unit-2",
+        practical_code="U2-P3",
+        assigned_date=assigned_dt,
+    )
+    assert updated.practical_number == 3
+    assert updated.title == "Updated Title"
+    assert updated.description == "Updated Desc"
+    assert updated.learning_outcome == "Updated Outcome"
+    assert updated.difficulty == "Hard"
+    assert updated.max_marks == 50
+    assert updated.submission_date == new_date
+    assert updated.submission_days == 21
+    assert updated.unit_name == "Unit-2"
+    assert updated.practical_code == "U2-P3"
+    assert updated.assigned_date == assigned_dt
+
+
+def test_update_practical_syncs_assignment_deadlines_and_preserves_evaluated():
+    db = setup_db()
+    world = seed_world(db)
+    past_date = date.today() - timedelta(days=3)
+    future_date = date.today() + timedelta(days=10)
+
+    practical = create_practical(
+        db, world["subject"].id, "Sync Test", "desc", "A", past_date, world["faculty"].id
+    )
+    assign_practical(db, practical, world["faculty"].id)
+
+    a1 = db.scalar(
+        select(Assignment).where(
+            Assignment.student_id == world["student"].id,
+            Assignment.practical_id == practical.id,
+        )
+    )
+    a2 = db.scalar(
+        select(Assignment).where(
+            Assignment.student_id == world["other_student"].id,
+            Assignment.practical_id == practical.id,
+        )
+    )
+
+    # Student 1 submits after past_date -> marked Late (ungraded)
+    sub1 = save_submission(db, a1.id, "https://github.com/example/s1", world["student"].user_id)
+    assert sub1.is_late is True
+    assert a1.status == "Late"
+
+    # Student 2 submits and gets graded -> Evaluated
+    sub2 = save_submission(db, a2.id, "https://github.com/example/s2", world["other_student"].user_id)
+    grade_submission(db, sub2.id, world["faculty"].id, "B", "Good", "")
+    db.refresh(a2)
+    assert a2.status == "Evaluated"
+
+    # Faculty extends due date into the future
+    update_practical(db, practical.id, world["faculty"].id, submission_date=future_date)
+    db.refresh(a1)
+    db.refresh(sub1)
+    db.refresh(a2)
+    db.refresh(sub2)
+
+    assert a1.deadline.date() == future_date
+    assert sub1.is_late is False
+    assert a1.status == "Submitted"
+    assert a2.deadline.date() == future_date
+    assert a2.status == "Evaluated"
+
+
+def test_update_practical_rejects_invalid_inputs():
+    db = setup_db()
+    world = seed_world(db)
+    p1 = create_practical(db, world["subject"].id, "P1", "d", "A", date.today(), world["faculty"].id)
+    p2 = create_practical(db, world["subject"].id, "P2", "d", "A", date.today(), world["faculty"].id)
+
+    with pytest.raises(ValueError, match="title is required"):
+        update_practical(db, p1.id, world["faculty"].id, title="   ")
+    with pytest.raises(ValueError, match="due date is required"):
+        update_practical(db, p1.id, world["faculty"].id, submission_date=None)
+    with pytest.raises(ValueError, match="already exists"):
+        update_practical(db, p2.id, world["faculty"].id, practical_number=p1.practical_number)
+
+
+def test_delete_submission_ungraded_resets_assignment_status():
+    db = setup_db()
+    world = seed_world(db)
+    practical = create_practical(
+        db, world["subject"].id, "Delete Sub", "d", "A", date.today() + timedelta(days=5), world["faculty"].id
+    )
+    assign_practical(db, practical, world["faculty"].id)
+    assignment = db.scalar(
+        select(Assignment).where(
+            Assignment.student_id == world["student"].id,
+            Assignment.practical_id == practical.id,
+        )
+    )
+    sub = save_submission(db, assignment.id, "https://github.com/example/repo", world["student"].user_id)
+    sub_id = sub.id
+    assert assignment.status == "Submitted"
+
+    delete_submission(db, assignment.id, world["student"].user_id)
+    db.refresh(assignment)
+    assert assignment.submission is None
+    assert assignment.status == "Assigned"
+    assert db.get(Submission, sub_id) is None
+
+    # Student can submit again after deleting
+    resub = save_submission(db, assignment.id, "https://github.com/example/repo2", world["student"].user_id)
+    assert resub.github_url == "https://github.com/example/repo2"
+    db.refresh(assignment)
+    assert assignment.status == "Submitted"
+
+
+def test_delete_and_edit_submission_blocked_when_graded():
+    db = setup_db()
+    world = seed_world(db)
+    practical = create_practical(
+        db, world["subject"].id, "Graded Sub", "d", "A", date.today() + timedelta(days=5), world["faculty"].id
+    )
+    assign_practical(db, practical, world["faculty"].id)
+    assignment = db.scalar(
+        select(Assignment).where(
+            Assignment.student_id == world["student"].id,
+            Assignment.practical_id == practical.id,
+        )
+    )
+    sub = save_submission(db, assignment.id, "https://github.com/example/repo", world["student"].user_id)
+    grade_submission(db, sub.id, world["faculty"].id, "A", "Great", "None")
+
+    with pytest.raises(ValueError, match="already been graded"):
+        delete_submission(db, assignment.id, world["student"].user_id)
+    with pytest.raises(ValueError, match="already been graded"):
+        save_submission(db, assignment.id, "https://github.com/example/new-repo", world["student"].user_id)
+
+
+def test_delete_submission_blocked_for_other_student():
+    db = setup_db()
+    world = seed_world(db)
+    practical = create_practical(
+        db, world["subject"].id, "Auth Sub", "d", "A", date.today() + timedelta(days=5), world["faculty"].id
+    )
+    assign_practical(db, practical, world["faculty"].id)
+    assignment = db.scalar(
+        select(Assignment).where(
+            Assignment.student_id == world["student"].id,
+            Assignment.practical_id == practical.id,
+        )
+    )
+    save_submission(db, assignment.id, "https://github.com/example/repo", world["student"].user_id)
+
+    with pytest.raises(ValueError, match="only delete your own submission"):
+        delete_submission(db, assignment.id, world["other_student"].user_id)
